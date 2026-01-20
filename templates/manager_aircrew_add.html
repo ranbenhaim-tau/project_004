@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Add crew member</h2>
+<form method="post" class="row g-3">
+  <div class="col-md-4"><label class="form-label">ID</label><input type="number" min="1" step="1" class="form-control" name="id" required></div>
+  <div class="col-md-4"><label class="form-label">First name (English)</label><input class="form-control" name="first" required pattern="[A-Za-z][A-Za-z \-']{0,48}[A-Za-z]?" title="Please use English letters only (spaces, hyphens, and apostrophes are allowed)."></div>
+  <div class="col-md-4"><label class="form-label">Last name (English)</label><input class="form-control" name="last" required pattern="[A-Za-z][A-Za-z \-']{0,48}[A-Za-z]?" title="Please use English letters only (spaces, hyphens, and apostrophes are allowed)."></div>
+  <div class="col-md-4"><label class="form-label">Phone</label><input type="tel" class="form-control" name="phone" required></div>
+  <div class="col-md-4"><label class="form-label">City</label><input class="form-control" name="city" required></div>
+  <div class="col-md-4"><label class="form-label">Street</label><input class="form-control" name="street" required></div>
+  <div class="col-md-4"><label class="form-label">House number</label><input type="number" min="1" step="1" class="form-control" name="house" required></div>
+  <div class="col-md-4"><label class="form-label">Employment start date</label><input type="date" class="form-control" name="start" required></div>
+  <div class="col-md-4">
+    <label class="form-label">Role</label>
+    <select class="form-select" name="typ" required>
+      <option value="Pilot">Pilot</option>
+      <option value="Flight attendant">Flight attendant</option>
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Long-haul certified</label>
+    <select class="form-select" name="training">
+      <option value="0">No</option>
+      <option value="1">Yes</option>
+    </select>
+  </div>
+  <div class="col-12">
+    <button class="btn btn-success">Add</button>
+  </div>
+</form>
+{% endblock %}

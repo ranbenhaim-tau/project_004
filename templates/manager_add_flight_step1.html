@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="row justify-content-center">
+  <div class="col-xl-10">
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <div>
+        <h2 class="mb-1">Create a flight</h2>
+        <div class="text-muted">Pick a route first. The system will determine Long/Short based on route duration. Flight ID is generated automatically at the end.</div>
+      </div>
+      <a class="btn btn-outline-secondary" href="{{ url_for('manager_flights') }}">
+        <i class="bi bi-arrow-left me-1"></i>Back to flights
+      </a>
+    </div>
+
+    <div class="card">
+      <div class="card-body p-3 p-md-4">
+
+        <form method="post" class="row g-3" id="createFlightForm">
+
+          <div class="col-md-12">
+            <label class="form-label">Route (Origin → Destination)</label>
+            <select class="form-select" name="route" id="route" required>
+              <option value="" selected disabled>Select a route</option>
+              {% for r in routes %}
+                <option
+                  value="{{ r.Origin_airport }}|{{ r.Arrival_airport }}"
+                  data-origin="{{ r.Origin_airport }}"
+                  data-dest="{{ r.Arrival_airport }}"
+                  data-duration="{{ r.Flight_duration }}"
+                >
+                  {{ r.Origin_airport }} → {{ r.Arrival_airport }}
+                  ({{ (r.Flight_duration // 60) }}h {{ (r.Flight_duration % 60) }}m)
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Departure date</label>
+            <input type="date" class="form-control" name="dep_date" id="dep_date" required>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Departure time</label>
+            <input type="time" class="form-control" name="dep_time" required>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Route details</label>
+            <div class="p-3 rounded-3 border bg-light" id="routeInfo">
+              <div class="text-muted">Select a route to see details.</div>
+            </div>
+          </div>
+
+          <div class="col-12 d-flex flex-wrap gap-2 mt-2">
+            <button class="btn btn-primary">
+              <i class="bi bi-arrow-right-circle me-1"></i>Next: choose aircraft & crew
+            </button>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  (function(){
+    // Departure date must be a future date
+    const depDate = document.getElementById('dep_date');
+    if (depDate) {
+      const today = new Date();
+      const min = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+      depDate.min = min.toISOString().slice(0,10);
+    }
+
+    const route = document.getElementById('route');
+    const box = document.getElementById('routeInfo');
+
+    function renderInfo(){
+      const opt = route.options[route.selectedIndex];
+      if (!opt || !opt.dataset || !opt.dataset.origin) {
+        box.innerHTML = '<div class="text-muted">Select a route to see details.</div>';
+        return;
+      }
+      const dur = parseInt(opt.dataset.duration || '0', 10);
+      const hrs = Math.floor(dur / 60);
+      const mins = dur % 60;
+      // Long-haul definition: strictly more than 6 hours (i.e., > 360 minutes)
+      const isLong = dur > 360;
+      const category = isLong ? 'Long-haul (over 6 hours)' : 'Short-haul (up to 6 hours)';
+
+      let planeRule = isLong ? 'Big aircraft only' : 'Any aircraft size';
+      let crewRule = isLong
+        ? 'Requires: 3 pilots + 6 attendants (all long-haul certified)'
+        : 'Small aircraft: 2 pilots + 3 attendants • Big aircraft: 3 pilots + 6 attendants';
+
+      box.innerHTML = `
+        <div class="fw-semibold mb-1">${opt.dataset.origin} → ${opt.dataset.dest}</div>
+        <div class="small text-muted">Duration: ${hrs}h ${mins}m</div>
+        <div class="small text-muted">Category: <span class="fw-semibold">${category}</span></div>
+        <div class="small text-muted">Aircraft constraint: ${planeRule}</div>
+        <div class="small text-muted">Crew requirements: ${crewRule}</div>
+      `;
+    }
+
+    route.addEventListener('change', renderInfo);
+    renderInfo();
+  })();
+</script>
+
+{% endblock %}

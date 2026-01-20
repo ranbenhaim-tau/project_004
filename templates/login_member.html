@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-body p-3 p-md-4">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <div class="icon-badge"><i class="bi bi-person-check"></i></div>
+          <div>
+            <h2 class="mb-1">Member Login</h2>
+            <div class="text-muted">Log in with your email and password.</div>
+          </div>
+        </div>
+
+        <form method="post" class="row g-3">
+          <div class="col-12">
+            <input class="form-control" name="email" type="email" required placeholder="Email">
+          </div>
+          <div class="col-12">
+            <input class="form-control" name="password" type="password" required placeholder="Password">
+          </div>
+          <div class="col-12 d-flex flex-wrap gap-2">
+            <button class="btn btn-primary"><i class="bi bi-box-arrow-in-right me-1"></i>Login</button>
+            <a class="btn btn-outline-secondary" href="{{ url_for('login') }}">Back</a>
+            {% if not session.get('force_login_member') %}
+            <a class="btn btn-outline-secondary" href="{{ url_for('register') }}">Create account</a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

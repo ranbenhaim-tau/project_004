@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
+  <div>
+    <h2 class="mb-1">Aircraft</h2>
+      </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-success" href="{{ url_for('manager_aircraft_add') }}"><i class="bi bi-plus-lg me-1"></i>Add aircraft</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('manager_dashboard') }}"><i class="bi bi-house me-1"></i>Back to dashboard</a>
+  </div>
+</div>
+
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form class="row g-3 align-items-end" onsubmit="return false;">
+  <div class="col-sm-6 col-md-2">
+    <label class="form-label">Aircraft ID</label>
+    <input id="flt-aircraft-id" type="text" class="form-control" placeholder="e.g., 2013">
+    <div id="flt-aircraft-id-err" class="form-text text-danger d-none">Aircraft ID must be a whole number.</div>
+  </div>
+  <div class="col-sm-6 col-md-4">
+    <label class="form-label">Manufacturer</label>
+    <select id="flt-aircraft-man" class="form-select">
+      <option value="" selected>All</option>
+      <option value="Airbus">Airbus</option>
+      <option value="Boeing">Boeing</option>
+      <option value="Dassault">Dassault</option>
+    </select>
+  </div>
+  <div class="col-sm-6 col-md-3">
+    <label class="form-label">Size</label>
+    <select id="flt-aircraft-size" class="form-select">
+      <option value="" selected>All</option>
+      <option value="Big">Big</option>
+      <option value="Small">Small</option>
+    </select>
+  </div>
+  <div class="col-sm-6 col-md-1 d-flex gap-2">
+    <button id="flt-aircraft-clear" type="button" class="btn btn-outline-secondary w-100" title="Clear"><i class="bi bi-x-lg"></i></button>
+  </div>
+</form>
+
+  </div>
+</div>
+
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Aircraft ID</th>
+            <th>Manufacturer</th>
+            <th>Size</th>
+            <th>Regular seats</th>
+            <th>First seats</th>
+            <th>Total seats</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in aircraft %}
+          <tr data-aircraft-id="{{ a.ID }}" data-aircraft-manufacturer="{{ a.Manufacturer }}" data-aircraft-size="{{ a.Size }}">
+            <td class="fw-semibold">{{ a.ID }}</td>
+            <td>{{ a.Manufacturer }}</td>
+            <td>
+              {% if a.Size == 'Big' %}
+                <span class="badge bg-primary text-white">Big</span>
+              {% else %}
+                <span class="badge bg-info text-white">Small</span>
+              {% endif %}
+            </td>
+            <td>{{ a.reg_seats }}</td>
+            <td>{{ a.first_seats }}</td>
+            <td class="fw-semibold">{{ a.total_seats }}</td>
+          </tr>
+          {% endfor %}
+          {% if not aircraft %}
+          <tr><td colspan="6" class="text-center text-muted p-4">No aircraft found.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<script>
+(function(){
+  const idEl = document.getElementById("flt-aircraft-id");
+  const manEl = document.getElementById("flt-aircraft-man");
+  const sizeEl = document.getElementById("flt-aircraft-size");
+  const errEl = document.getElementById("flt-aircraft-id-err");
+  const rows = Array.from(document.querySelectorAll("tbody tr[data-aircraft-id]"));
+
+  function normalize(s){ return (s||"").toString().trim().toLowerCase(); }
+
+  function apply(){
+    const idRaw = normalize(idEl.value);
+    const man = normalize(manEl.value);
+    const size = normalize(sizeEl.value);
+
+    if(idRaw && !/^[0-9]+$/.test(idRaw)){
+      errEl.classList.remove("d-none");
+    } else {
+      errEl.classList.add("d-none");
+    }
+
+    rows.forEach(tr => {
+      const id = normalize(tr.dataset.aircraftId);
+      const mf = normalize(tr.dataset.aircraftManufacturer);
+      const sz = normalize(tr.dataset.aircraftSize);
+
+      let ok = true;
+      if(idRaw && /^[0-9]+$/.test(idRaw) && !id.includes(idRaw)) ok = false;
+      if(man && !mf.includes(man)) ok = false;
+      if(size && sz !== size) ok = false;
+
+      tr.style.display = ok ? "" : "none";
+    });
+  }
+
+  function clear(){
+    idEl.value = "";
+    manEl.value = "";
+    sizeEl.value = "";
+    errEl.classList.add("d-none");
+    rows.forEach(tr => tr.style.display = "");
+  }
+
+  idEl.addEventListener("input", apply);
+  manEl.addEventListener("change", apply);
+  sizeEl.addEventListener("change", apply);
+  document.getElementById("flt-aircraft-clear").addEventListener("click", clear);
+})();
+</script>
+
+
+{% endblock %}

@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
+  <div>
+    <h2 class="mb-1">Seat Selection</h2>
+    <div class="text-muted">
+      Flight <strong>#{{flight.ID}}</strong> ·
+      {{flight.Origin_airport}} → {{flight.Arrival_airport}} ·
+      {{ flight.Date_of_departure }} {{ flight.Time_of_departure|hm }} ·
+      Aircraft {{flight.Airplane_ID}} ({{flight.Manufacturer}}, {{flight.Size}})
+    </div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('flights_results', dep_date=flight.Date_of_departure, origin=flight.Origin_airport, dest=flight.Arrival_airport) }}">
+    <i class="bi bi-arrow-left me-1"></i>Back to results
+  </a>
+</div>
+
+<div class="card">
+  <div class="card-body p-3 p-md-4" data-seat-picker data-qty="{{qty_required}}">
+
+    <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between mb-3">
+      <div class="d-flex flex-wrap gap-3 align-items-center">
+        <span class="fw-bold">Legend:</span>
+        <span class="d-inline-flex align-items-center gap-2"><span class="seat" style="width:18px;height:18px;border-radius:6px;"></span><span class="text-muted">Available</span></span>
+        <span class="d-inline-flex align-items-center gap-2"><span class="seat selected" style="width:18px;height:18px;border-radius:6px;"></span><span class="text-muted">Selected</span></span>
+        <span class="d-inline-flex align-items-center gap-2"><span class="seat taken" style="width:18px;height:18px;border-radius:6px;"></span><span class="text-muted">Unavailable</span></span>
+      </div>
+
+      <div class="text-muted">
+        <span class="fw-bold">Required:</span> {{qty_required}} seat(s) ·
+        <span id="seat_counter" class="fw-bold">0 / {{qty_required}} selected</span>
+      </div>
+    </div>
+
+    <div id="seat_toast" class="alert alert-warning py-2 px-3 d-none" role="alert" style="border-radius: 14px;"></div>
+
+    <form method="post">
+      {% for cls, rows in seatmap.items() %}
+        <div class="mt-4">
+          <h5 class="mb-2">Class: {{cls}}</h5>
+          <div class="text-muted small mb-2">Click seats to select. You must select exactly {{qty_required}}.</div>
+
+          <div class="seatmap-wrapper">
+            <div class="seatmap">
+              {% for r, seats in rows.items() %}
+                {% set mid = (seats|length + 1) // 2 %}
+                <div class="seat-row">
+                  <div class="seat-row-label">Row {{r}}</div>
+                  <div class="seat-groups">
+                    <div class="seat-group">
+                      {% for s in seats[:mid] %}
+                        {% if s.Availability %}
+                          <label class="seat" title="Seat {{s.SEAT_Column_number}} – row {{r}}">
+                            <input type="checkbox" name="seat_key" value="{{cls}}|{{r}}|{{s.SEAT_Column_number}}">
+                            <span>{{s.SEAT_Column_number}}</span>
+                          </label>
+                        {% else %}
+                          <span class="seat taken" title="Unavailable">{{s.SEAT_Column_number}}</span>
+                        {% endif %}
+                      {% endfor %}
+                    </div>
+
+                    <div class="seat-aisle" aria-hidden="true"></div>
+
+                    <div class="seat-group">
+                      {% for s in seats[mid:] %}
+                        {% if s.Availability %}
+                          <label class="seat" title="Seat {{s.SEAT_Column_number}} – row {{r}}">
+                            <input type="checkbox" name="seat_key" value="{{cls}}|{{r}}|{{s.SEAT_Column_number}}">
+                            <span>{{s.SEAT_Column_number}}</span>
+                          </label>
+                        {% else %}
+                          <span class="seat taken" title="Unavailable">{{s.SEAT_Column_number}}</span>
+                        {% endif %}
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+
+      <div class="mt-4 d-flex flex-wrap gap-2">
+        <button class="btn btn-primary" id="continue_btn"><i class="bi bi-credit-card me-1"></i>Continue to checkout</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('flight_book', flight_id=flight.ID) }}"><i class="bi bi-sliders2 me-1"></i>Change quantity</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('flights_search') }}"><i class="bi bi-search me-1"></i>Search again</a>
+      </div>
+    </form>
+
+  </div>
+</div>
+
+<script>
+  // Toggle "selected" style on seat labels when checkbox is clicked
+  document.addEventListener("change", function(e){
+    if(e.target && e.target.matches('input[type="checkbox"][name="seat_key"]')){
+      const label = e.target.closest(".seat");
+      if(label){ label.classList.toggle("selected", e.target.checked); }
+    }
+  });
+</script>
+
+{% endblock %}

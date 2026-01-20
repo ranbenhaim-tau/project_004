@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
+  <div>
+    <h2 class="mb-1 report-title">{{ title }}</h2>
+    <div class="text-muted" style="font-size: 0.95rem;">Conclusions from the data</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('manager_dashboard') }}"><i class="bi bi-house me-1"></i>Back to dashboard</a>
+  </div>
+</div>
+
+
+{% if report=='3' and summary %}
+    <div class="d-flex flex-wrap gap-2 mb-3 justify-content-center">
+      <div class="report-ellipse bg-success-subtle border border-success">
+        <div class="label">Most hours (overall)</div>
+        <div class="value">{{ summary.max_overall.Name if summary.max_overall else 'N/A' }}</div>
+        {% if summary.max_overall %}
+          <div class="small text-muted">ID: {{ summary.max_overall.ID }} · {{ '%.2f'|format(summary.max_overall.Hours) }} hours</div>
+        {% endif %}
+      </div>
+
+      <div class="report-ellipse bg-success-subtle border border-success">
+        <div class="label">Most hours (long flights)</div>
+        <div class="value">{{ summary.max_long.Name if summary.max_long else 'N/A' }}</div>
+        {% if summary.max_long %}
+          <div class="small text-muted">ID: {{ summary.max_long.ID }} · {{ '%.2f'|format(summary.max_long.Hours) }} hours</div>
+        {% endif %}
+      </div>
+
+      <div class="report-ellipse bg-success-subtle border border-success">
+        <div class="label">Most hours (short flights)</div>
+        <div class="value">{{ summary.max_short.Name if summary.max_short else 'N/A' }}</div>
+        {% if summary.max_short %}
+          <div class="small text-muted">ID: {{ summary.max_short.ID }} · {{ '%.2f'|format(summary.max_short.Hours) }} hours</div>
+        {% endif %}
+      </div>
+
+      <div class="report-ellipse bg-danger-subtle border border-danger">
+        <div class="label">Least hours (overall)</div>
+        <div class="value">{{ summary.min_overall.Name if summary.min_overall else 'N/A' }}</div>
+        {% if summary.min_overall %}
+          <div class="small text-muted">ID: {{ summary.min_overall.ID }} · {{ '%.2f'|format(summary.min_overall.Hours) }} hours</div>
+        {% endif %}
+      </div>
+
+      <div class="report-ellipse bg-danger-subtle border border-danger">
+        <div class="label">Least hours (long flights)</div>
+        <div class="value">{{ summary.min_long.Name if summary.min_long else 'N/A' }}</div>
+        {% if summary.min_long %}
+          <div class="small text-muted">ID: {{ summary.min_long.ID }} · {{ '%.2f'|format(summary.min_long.Hours) }} hours</div>
+        {% endif %}
+      </div>
+
+      <div class="report-ellipse bg-danger-subtle border border-danger">
+        <div class="label">Least hours (short flights)</div>
+        <div class="value">{{ summary.min_short.Name if summary.min_short else 'N/A' }}</div>
+        {% if summary.min_short %}
+          <div class="small text-muted">ID: {{ summary.min_short.ID }} · {{ '%.2f'|format(summary.min_short.Hours) }} hours</div>
+        {% endif %}
+      </div>
+    </div>
+{% endif %}
+
+
+{% if report=='4' and cancel_extremes %}
+  <div class="d-flex flex-wrap gap-2 mb-3 justify-content-center">
+    <div class="report-ellipse bg-success-subtle border border-success">
+      <div class="label">Lowest cancellation month</div>
+      <div class="value">{{ cancel_extremes.min.Month if cancel_extremes.min else 'N/A' }}</div>
+      {% if cancel_extremes.min %}
+        <div class="small text-muted">{{ '%.2f'|format(cancel_extremes.min.Rate) }}%</div>
+      {% endif %}
+    </div>
+
+    <div class="report-ellipse bg-danger-subtle border border-danger">
+      <div class="label">Highest cancellation month</div>
+      <div class="value">{{ cancel_extremes.max.Month if cancel_extremes.max else 'N/A' }}</div>
+      {% if cancel_extremes.max %}
+        <div class="small text-muted">{{ '%.2f'|format(cancel_extremes.max.Rate) }}%</div>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+
+{% if report=='5' and fleet_extremes %}
+  <div class="d-flex flex-wrap gap-2 mb-3 justify-content-center">
+    <div class="report-ellipse bg-success-subtle border border-success">
+      <div class="label">Highest utilization ({{ fleet_extremes.month if fleet_extremes.month else 'N/A' }})</div>
+      <div class="value">Aircraft {{ fleet_extremes.max_util.Airplane_ID if fleet_extremes.max_util else 'N/A' }}</div>
+      {% if fleet_extremes.max_util %}
+        <div class="small text-muted">{{ '%.2f'|format(fleet_extremes.max_util.Util) }}%</div>
+      {% endif %}
+    </div>
+
+    <div class="report-ellipse bg-success-subtle border border-success">
+      <div class="label">Most flights ({{ fleet_extremes.month if fleet_extremes.month else 'N/A' }})</div>
+      <div class="value">Aircraft {{ fleet_extremes.max_flights.Airplane_ID if fleet_extremes.max_flights else 'N/A' }}</div>
+      {% if fleet_extremes.max_flights %}
+        <div class="small text-muted">{{ fleet_extremes.max_flights.Flights }} flights</div>
+      {% endif %}
+    </div>
+
+    <div class="report-ellipse bg-danger-subtle border border-danger">
+      <div class="label">Lowest utilization ({{ fleet_extremes.month if fleet_extremes.month else 'N/A' }})</div>
+      <div class="value">Aircraft {{ fleet_extremes.min_util.Airplane_ID if fleet_extremes.min_util else 'N/A' }}</div>
+      {% if fleet_extremes.min_util %}
+        <div class="small text-muted">{{ '%.2f'|format(fleet_extremes.min_util.Util) }}%</div>
+      {% endif %}
+    </div>
+
+    <div class="report-ellipse bg-danger-subtle border border-danger">
+      <div class="label">Fewest flights ({{ fleet_extremes.month if fleet_extremes.month else 'N/A' }})</div>
+      <div class="value">Aircraft {{ fleet_extremes.min_flights.Airplane_ID if fleet_extremes.min_flights else 'N/A' }}</div>
+      {% if fleet_extremes.min_flights %}
+        <div class="small text-muted">{{ fleet_extremes.min_flights.Flights }} flights</div>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+
+{% if report=='2' and top_manufacturers %}
+  <div class="d-flex flex-wrap gap-3 mb-3 justify-content-center">
+    <div class="report-circle bg-success-subtle border border-success">
+      <div class="label">Top manufacturer (Regular)</div>
+      <div class="value">{{ top_manufacturers.regular.Manufacturer }}</div>
+      <div class="small text-muted">${{ '%.2f'|format(top_manufacturers.regular.Total_Income) }}</div>
+    </div>
+
+    <div class="report-circle bg-success-subtle border border-success">
+      <div class="label">Top manufacturer (First)</div>
+      <div class="value">{{ top_manufacturers.first.Manufacturer }}</div>
+      <div class="small text-muted">${{ '%.2f'|format(top_manufacturers.first.Total_Income) }}</div>
+    </div>
+
+    <div class="report-circle bg-success-subtle border border-success">
+      <div class="label">Top manufacturer (Overall)</div>
+      <div class="value">{{ top_manufacturers.overall.Manufacturer }}</div>
+      <div class="small text-muted">${{ '%.2f'|format(top_manufacturers.overall.Total_Income) }}</div>
+    </div>
+  </div>
+{% endif %}
+
+
+{% if chart_path %}
+  <div class="my-3">
+    <img class="img-fluid" src="{{ url_for('static', filename=chart_path) }}" alt="chart">
+  </div>
+{% endif %}
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 text-center">
+        <thead class="table-light">
+          <tr>
+            {% for c in pretty_cols %}<th>{{ c }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in table %}
+            <tr>
+              {% for c in cols %}
+                <td>{{ r[c] }}</td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+          {% if not table %}
+            <tr><td class="text-center text-muted p-4" colspan="{{ cols|length }}">No data.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

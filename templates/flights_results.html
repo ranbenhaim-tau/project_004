@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
+  <div>
+    <h2 class="mb-1">Search Results</h2>
+    <div class="text-muted">
+      Date: <strong>{{ dep_date or "All" }}</strong> ·
+      From: <strong>{{ origin or "All" }}</strong> ·
+      To: <strong>{{ dest or "All" }}</strong>
+    </div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('flights_search') }}"><i class="bi bi-arrow-left me-1"></i>New search</a>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th class="ps-3">Flight #</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Origin</th>
+            <th>Destination</th>
+            <th>Status</th>
+            <th>Regular ($)</th>
+            <th>First ($)</th>
+            <th>Available</th>
+            <th class="text-end pe-3"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in flights %}
+            <tr>
+              <td class="ps-3 fw-bold">#{{ f.ID }}</td>
+              <td>{{ f.Date_of_departure }}</td>
+              <td>{{ f.Time_of_departure|hm }}</td>
+              <td>{{ f.Origin_airport }}</td>
+              <td>{{ f.Arrival_airport }}</td>
+                            <td>
+                {% set st = (f.Status or '')|lower|replace(' ', '-') %}
+                <span class="badge status-badge status-{{ st }}">{{ f.Status }}</span>
+              </td>
+              <td class="fw-semibold">{{ "$%.2f"|format(f.price_regular|float) if f.price_regular is not none else "—" }}</td>
+              <td class="fw-semibold">{{ "$%.2f"|format(f.price_first|float) if f.price_first is not none else "—" }}</td>
+              <td class="fw-semibold">{{ f.available_tickets }} / {{ f.total_tickets }}</td>
+              <td class="text-end pe-3">
+                {% if f.Status in ['Active','Full'] and f.available_tickets|int > 0 %}
+                  <a class="btn btn-sm btn-primary" href="{{ url_for('flight_book', flight_id=f.ID) }}">
+                    <i class="bi bi-ticket-perforated me-1"></i>Book
+                  </a>
+                {% else %}
+                  <span class="text-muted">Not available</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          {% if flights|length == 0 %}
+            <tr>
+              <td class="ps-3 py-4" colspan="10">
+                <div class="text-muted">No flights found. Try different dates or route.</div>
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

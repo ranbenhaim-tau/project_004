@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body p-3 p-md-4">
+
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
+          <div>
+            <h2 class="mb-1">Book Flight <span class="text-muted">#{{flight.ID}}</span></h2>
+            <div class="text-muted">
+              {{flight.Origin_airport}} → {{flight.Arrival_airport}} ·
+              {{ flight.Date_of_departure }} {{ flight.Time_of_departure|hm }}
+            </div>
+          </div>
+          <a class="btn btn-outline-secondary" href="{{ url_for('flights_results', dep_date=flight.Date_of_departure, origin=flight.Origin_airport, dest=flight.Arrival_airport) }}">
+            <i class="bi bi-arrow-left me-1"></i>Back to results
+          </a>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="p-3 rounded-4" style="border:1px solid rgba(15,23,42,.12); background: rgba(255,255,255,.65);">
+              <div class="text-muted small">Available seats</div>
+              <div class="display-6 fw-bold mb-0">{{ flight.available_tickets }}</div>
+              <div class="text-muted">Choose how many tickets you want to buy.</div>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <form method="post" class="p-3 rounded-4" style="border:1px solid rgba(15,23,42,.12); background: rgba(255,255,255,.65);">
+              <label class="form-label fw-bold">Number of tickets</label>
+              <select class="form-select" name="qty" required>
+                {% for n in range(1, (flight.available_tickets|int) + 1) %}
+                  <option value="{{n}}" {% if n==qty_pref %}selected{% endif %}>{{n}}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">You can select up to the number of available seats on this flight.</div>
+
+              <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-primary"><i class="bi bi-grid-3x3-gap me-1"></i>Choose seats</button>
+                <a class="btn btn-outline-secondary" href="{{ url_for('flights_search') }}">New search</a>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

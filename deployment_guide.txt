@@ -1,0 +1,56 @@
+DEPLOYMENT GUIDE FOR PYTHONANYWHERE
+
+1.  **Account Setup**
+    *   Sign up/Log in to [PythonAnywhere](https://www.pythonanywhere.com/).
+
+2.  **Upload Code**
+    *   Go to the **Files** tab.
+    *   Upload the `Group_004.zip` file.
+    *   Open a **Bash** console.
+    *   Unzip the file: `unzip Group_004.zip`
+    *   (Alternatively, clone from GitHub: `git clone https://github.com/ranbenhaim-tau/project_004.git` and enter credentials if private, or use public URL).
+
+3.  **Virtual Environment (Optional but Recommended)**
+    *   In the Bash console:
+        ```bash
+        mkvirtualenv --python=/usr/bin/python3.10 flytau-env
+        pip install -r requirements.txt
+        ```
+
+4.  **Database Setup**
+    *   In the Bash console, navigate to the project folder: `cd project_004` (or whatever the folder is named).
+    *   Run the seed script to create the database:
+        ```bash
+        python seed_data.py
+        ```
+    *   This will create `flytau.db`.
+
+5.  **Web App Configuration**
+    *   Go to the **Web** tab.
+    *   Click **Add a new web app**.
+    *   Choose **Manual configuration** (select Python 3.10).
+    *   **Source code**: Enter the path to your project folder (e.g., `/home/yourusername/project_004`).
+    *   **WSGI configuration file**: Click the link to edit.
+        *   Delete existing content.
+        *   Add:
+            ```python
+            import sys
+            import os
+            
+            # Add your project directory to the sys.path
+            project_home = '/home/yourusername/project_004'
+            if project_home not in sys.path:
+                sys.path.insert(0, project_home)
+            
+            from main import app as application
+            ```
+            (Replace `yourusername` and `project_004` with actual values).
+    *   **Virtualenv**: Enter the path (e.g., `/home/yourusername/.virtualenvs/flytau-env`).
+
+6.  **Reload**
+    *   Click the **Reload** button at the top of the Web tab.
+    *   Open the provided URL (e.g., `http://yourusername.pythonanywhere.com`).
+
+7.  **Troubleshooting**
+    *   If you see errors, check the **Error log** link on the Web tab.
+    *   Ensure `flytau.db` is in the correct path and `config.py` uses absolute paths (which it does).

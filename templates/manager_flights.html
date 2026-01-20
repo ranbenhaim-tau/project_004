@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+.flights-compact-table th, .flights-compact-table td { padding: .32rem .35rem; font-size: .88rem; }
+.flights-compact-table td.small { font-size: .84rem; }
+.flights-compact-table th { white-space: nowrap; }
+.flights-compact-table td:nth-child(5), .flights-compact-table td:nth-child(6) { max-width: 190px; white-space: normal; }
+.flights-compact-table td:nth-child(8) { white-space: nowrap; }
+.flights-compact-table td { vertical-align: middle; }
+</style>
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
+  <div>
+    <h2 class="mb-1">Flights</h2>
+    <div class="text-muted">Manage all flights.</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-success" href="{{ url_for('manager_add_flight_step1') }}"><i class="bi bi-plus-lg me-1"></i>Add flight</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('manager_dashboard') }}"><i class="bi bi-house me-1"></i>Back to dashboard</a>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form class="row g-2 align-items-end" method="get">
+      <div class="col-md-4">
+        <label class="form-label">Status</label>
+        <select class="form-select" name="status">
+          <option value="" {% if not status %}selected{% endif %}>All</option>
+          {% for s in ['Active','Full','Completed','Canceled'] %}
+            <option value="{{s}}" {% if status==s %}selected{% endif %}>{{s}}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 d-flex gap-2">
+        <button class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Apply</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('manager_flights') }}">Clear</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 table-sm flight-table">
+        <thead class="table-light">
+          <tr>
+            <th class="text-nowrap">Flight</th>
+            <th class="text-nowrap">Departure</th>
+            <th class="text-nowrap">Route</th>
+            <th>Pilots</th>
+            <th>Attendants</th>
+            <th class="text-nowrap">Type</th>
+            <th class="text-nowrap">Aircraft</th>
+            <th class="text-nowrap">Status</th>
+            <th class="text-nowrap">Available</th>
+            <th class="text-nowrap"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in flights %}
+            <tr>
+              <td class="fw-semibold">{{f.ID}}</td>
+              <td class="text-nowrap">{{ f.Date_of_departure }} {{ f.Time_of_departure|hm }}</td>
+              <td class="text-nowrap">{{ f.Origin_airport }}→{{ f.Arrival_airport }}</td>
+              <td>
+                {% if f.pilots %}
+                  <div class="d-flex flex-column gap-1">
+                    {% for p in f.pilots.split(', ') %}
+                      <div class="crew-line">{{ p }}</div>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td>
+                {% if f.attendants %}
+                  <div class="d-flex flex-column gap-1">
+                    {% for a in f.attendants.split(', ') %}
+                      <div class="crew-line">{{ a }}</div>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td class="text-nowrap">{{ f.Type }}</td>
+              <td class="text-nowrap"><span class="fw-semibold">{{ f.Airplane_ID }}</span> <span class="small text-muted">({{ f.Manufacturer }}, {{ f.Size }})</span></td>
+              <td>
+                {% set st = (f.Status|string)|lower|replace(' ', '-') %}
+                <span class="badge status-badge status-{{ st }}">{{ f.Status }}</span>
+              </td>
+              <td class="text-nowrap">{{ f.available_tickets }}/{{ f.total_tickets }}</td>
+              <td class="text-nowrap">
+                {% if f.Status in ['Active','Full'] %}
+                  <button type="button"
+                          class="btn btn-sm btn-danger"
+                          data-bs-toggle="modal"
+                          data-bs-target="#confirmCancelFlightModal"
+                          data-action="{{ url_for('manager_cancel_flight', flight_id=f.ID) }}">
+                    <i class="bi bi-x-octagon me-1"></i>Cancel flight
+                  </button>
+                {% elif f.Status == 'Canceled' %}
+                  <span class="text-muted">Cancelled</span>
+                {% else %}
+                  <span class="text-muted">Not cancellable</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Cancel flight confirmation modal (English only) -->
+<div class="modal fade" id="confirmCancelFlightModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Cancel flight</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Are you sure you want to cancel this flight?</p>
+        <div class="rounded border p-2 bg-light">
+          <div class="small text-muted">
+            This will cancel the flight and automatically update any affected orders to <strong>System Cancellation</strong>.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Go back</button>
+        <form id="cancelFlightForm" method="post" action="#" class="m-0">
+          <button type="submit" class="btn btn-danger">Continue cancellation</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const modalEl = document.getElementById('confirmCancelFlightModal');
+    if (!modalEl) return;
+
+        const formEl = document.getElementById('cancelFlightForm');
+
+    modalEl.addEventListener('show.bs.modal', function (event) {
+      const button = event.relatedTarget;
+      if (!button) return;
+      const action = button.getAttribute('data-action') || '#';
+      formEl.setAttribute('action', action);    });
+  })();
+</script>
+{% endblock %}

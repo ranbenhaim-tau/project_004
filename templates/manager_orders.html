@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
+  <div>
+    <h2 class="mb-1">Orders</h2>
+    <div class="text-muted">All orders (members and guests).</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('manager_dashboard') }}"><i class="bi bi-house me-1"></i>Back to dashboard</a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form class="row g-2 align-items-end" method="get">
+      <div class="col-md-4">
+        <label class="form-label">Status</label>
+        <select class="form-select" name="status">
+          <option value="" {% if not status %}selected{% endif %}>All</option>
+          {% for s in ['Active','Completed','Customer Cancellation','System Cancellation'] %}
+            <option value="{{s}}" {% if status==s %}selected{% endif %}>{{s}}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Search (email / order id)</label>
+        <input class="form-control" name="q" value="{{ q or '' }}" placeholder="e.g., 10512 or user@example.com">
+      </div>
+      <div class="col-md-4 d-flex gap-2">
+        <button class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Apply</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('manager_orders') }}">Clear</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Order #</th>
+            <th>Status</th>
+            <th>Total</th>
+            <th>Purchase date</th>
+            <th>Buyer</th>
+            <th>Tickets</th>
+            <th>Flight</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in orders %}
+          <tr>
+            <td class="fw-semibold">{{ o.ID }}</td>
+            <td>
+              {% set st = (o.Status or '')|lower|replace(' ', '-') %}
+              <span class="badge status-badge status-{{ st }}">{{ o.Status }}</span>
+            </td>
+            <td>${{ '%.2f'|format(o.Total_price or 0) }}</td>
+            <td>{{ o.Date_of_purchase }}</td>
+            <td>
+              {% if o.MEMBER_Email %}
+                <span class="badge bg-primary me-1">Member</span>{{ o.MEMBER_Email }}
+              {% else %}
+                <span class="badge bg-info text-white me-1">Guest</span>{{ o.GUEST_Email }}
+              {% endif %}
+            </td>
+            <td>{{ o.tickets_count }}</td>
+            <td>
+              {% if o.flight_id %}
+                {{ o.origin }} → {{ o.dest }}<br>
+                <span class="text-muted small">{{ o.dep_date }} {{ o.dep_time }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          {% if not orders %}
+          <tr><td colspan="7" class="text-center text-muted p-4">No orders found.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

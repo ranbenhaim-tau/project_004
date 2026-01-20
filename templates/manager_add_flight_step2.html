@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h2 class="mb-1">Create flight – Step 2</h2>
+    <div class="text-muted">Choose an aircraft, assign crew, set ticket prices.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('manager_add_flight_step1') }}">
+    <i class="bi bi-arrow-left me-1"></i>Back
+  </a>
+</div>
+
+<div class="alert alert-secondary">
+  <div class="fw-semibold">Flight summary</div>
+  <div class="small mt-1">
+    <span class="me-2">ID: <span class="fw-semibold">(auto-generated)</span></span>
+    <span class="me-2">Route: <span class="fw-semibold">{{nf.origin}}→{{nf.dest}}</span></span>
+    <span class="me-2">Departure: <span class="fw-semibold">{{nf.dep_date}} {{nf.dep_time[:5]}}</span></span>
+    <span class="me-2">Arrival: <span class="fw-semibold">{{nf.arr_date}} {{nf.arr_time[:5]}}</span></span>
+    <span class="me-2">Type: <span class="fw-semibold">{{nf.ftype}}</span></span>
+    {% set _dmin = (nf.duration_min | int) %}
+    {% set _hrs = (_dmin // 60) %}
+    {% set _mins = (_dmin % 60) %}
+    <span class="me-2">Duration: <span class="fw-semibold">{{ _hrs }}h{% if _mins %} {{ _mins }}m{% endif %}</span></span>
+  </div>
+  <div class="small mt-2" id="reqText"></div>
+</div>
+
+<form method="post" class="row g-3">
+  <div class="col-lg-6">
+    <label class="form-label">Select an available aircraft</label>
+    <select class="form-select" name="airplane_id" required>
+      <option value="">Select</option>
+      {% for a in airplanes %}
+        <option value="{{a.ID}}" data-size="{{a.Size}}" {% if recommended_plane_id and a.ID==recommended_plane_id %}selected{% endif %}>
+          {{a.ID}} | {{a.Manufacturer}} | {{a.Size}} | Purchased: {{a.Date_of_purchase}}
+        </option>
+      {% endfor %}
+    </select>
+    <div class="form-text">
+      {% if nf.ftype=='Long' %}
+        Long-haul: only large aircraft can be selected.
+      {% else %}
+        Short-haul: you may select a small or large aircraft (requirements differ by size).
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-3">
+    <label class="form-label">Regular class price</label>
+    <input class="form-control" name="price_regular" type="number" min="0" step="0.01" required>
+  </div>
+  <div class="col-lg-3">
+    <label class="form-label">Business class price</label>
+    <input class="form-control" name="price_first" id="price_first" type="number" min="0" step="0.01" placeholder="e.g., 499.99">
+  </div>
+
+  <div class="col-lg-6">
+    <div class="d-flex justify-content-between align-items-center">
+      <label class="form-label mb-1">Pilots</label>
+      <span class="small text-muted" id="pilotsReq"></span>
+    </div>
+    <div class="crew-scroll list-group" id="pilotGrid" aria-label="Pilots">
+      {% for p in pilots %}
+        <input class="crew-check" type="checkbox" name="pilot_ids" id="pilot_{{ p.ID }}" value="{{ p.ID }}"
+               {% if (p.ID ~ '') in recommended_pilot_ids %}checked{% endif %}>
+        <button type="button" class="list-group-item list-group-item-action crew-item" data-for="pilot_{{ p.ID }}">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="fw-semibold">{{ p.First_name }} {{ p.Last_name }}</div>
+            <div class="text-muted small">#{{ p.ID }}{% if p.Training %} · Certified{% endif %}</div>
+          </div>
+        </button>
+      {% endfor %}
+    </div>
+    <div class="form-text">
+      {% if nf.ftype=='Long' %}Only long-haul certified crew are shown.{% else %}Crew list excludes employees already assigned at the same date/time.{% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="d-flex justify-content-between align-items-center">
+      <label class="form-label mb-1">Flight attendants</label>
+      <span class="small text-muted" id="attReq"></span>
+    </div>
+    <div class="crew-scroll list-group" id="attGrid" aria-label="Flight attendants">
+      {% for a in attendants %}
+        <input class="crew-check" type="checkbox" name="att_ids" id="att_{{ a.ID }}" value="{{ a.ID }}"
+               {% if (a.ID ~ '') in recommended_att_ids %}checked{% endif %}>
+        <button type="button" class="list-group-item list-group-item-action crew-item" data-for="att_{{ a.ID }}">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="fw-semibold">{{ a.First_name }} {{ a.Last_name }}</div>
+            <div class="text-muted small">#{{ a.ID }}{% if a.Training %} · Certified{% endif %}</div>
+          </div>
+        </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="small text-muted mb-2" id="selectedCounts"></div>
+    <div class="d-flex flex-wrap gap-2">
+      <button type="button" class="btn btn-outline-primary" id="autoAssignBtn">
+        <i class="bi bi-magic me-1"></i>Auto-assign crew
+      </button>
+      <button class="btn btn-success">
+        <i class="bi bi-check2-circle me-1"></i>Create flight & tickets
+      </button>
+    </div>
+  </div>
+</form>
+
+<style>
+  .crew-check{ position: absolute; opacity: 0; pointer-events: none; }
+  .crew-scroll{
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid rgba(0,0,0,.12);
+    border-radius: 12px;
+    background: #fff;
+  }
+  .crew-item{ cursor: pointer; user-select: none; }
+  .crew-item.active{ font-weight: 600; }
+</style>
+
+<script>
+  (function(){
+    const airplaneSelect = document.querySelector('select[name="airplane_id"]');
+    const reqText = document.getElementById('reqText');
+    const pilotsReq = document.getElementById('pilotsReq');
+    const attReq = document.getElementById('attReq');
+    const autoBtn = document.getElementById('autoAssignBtn');
+    const businessInput = document.getElementById('price_first');
+
+    const pilotChecks = Array.from(document.querySelectorAll('input[name="pilot_ids"]'));
+    const attChecks = Array.from(document.querySelectorAll('input[name="att_ids"]'));
+
+    function reqForSize(size){
+      return (size === 'Big') ? {pilots: 3, atts: 6} : {pilots: 2, atts: 3};
+    }
+
+    function currentSize(){
+      const opt = airplaneSelect.options[airplaneSelect.selectedIndex];
+      return opt ? (opt.dataset.size || '') : '';
+    }
+
+    function checkedCount(list){
+      return list.filter(c => c.checked).length;
+    }
+
+    function setItemState(check){
+      const btn = document.querySelector(`[data-for="${check.id}"]`);
+      if (btn) btn.classList.toggle('active', check.checked);
+    }
+
+    function updateReqUI(){
+      const size = currentSize();
+      if (!size){
+        reqText.textContent = '';
+        pilotsReq.textContent = '';
+        attReq.textContent = '';
+        if (businessInput){
+          businessInput.required = false;
+        }
+        return;
+      }
+      const r = reqForSize(size);
+      const needsBusiness = (size === 'Big');
+      if (businessInput){
+        businessInput.required = needsBusiness;
+      }
+      const bizMsg = needsBusiness ? ' Business price is required.' : ' Business price is optional.';
+      reqText.innerHTML = `Requirements for <b>${size}</b> aircraft: <b>${r.pilots}</b> pilots and <b>${r.atts}</b> attendants.${bizMsg}`;
+      pilotsReq.textContent = `Selected ${checkedCount(pilotChecks)} / ${r.pilots}`;
+      attReq.textContent = `Selected ${checkedCount(attChecks)} / ${r.atts}`;
+    }
+
+    function enforceMax(list, max){
+      // If selection exceeds max, uncheck the last toggled box
+      if (checkedCount(list) <= max) return true;
+      return false;
+    }
+
+    function bindList(list, getMax, labelEl){
+      for (const c of list){
+        c.addEventListener('change', () => {
+          const size = currentSize();
+          if (!size) {
+            // Let them pick, but UI will update once aircraft selected
+            setItemState(c);
+            updateReqUI();
+            return;
+          }
+          const max = getMax(reqForSize(size));
+          if (c.checked && !enforceMax(list, max)){
+            c.checked = false;
+            alert(`You can select at most ${max}.`);
+          }
+          setItemState(c);
+          updateReqUI();
+        });
+        // initial
+        setItemState(c);
+      }
+    }
+
+    bindList(pilotChecks, r => r.pilots, pilotsReq);
+    bindList(attChecks, r => r.atts, attReq);
+
+    function clearChecks(list){
+      list.forEach(c => { c.checked = false; setItemState(c); });
+    }
+
+    function selectFirstN(list, n){
+      clearChecks(list);
+      let chosen = 0;
+      for (const c of list){
+        c.checked = true;
+        setItemState(c);
+        chosen++;
+        if (chosen >= n) break;
+      }
+    }
+
+    // Click-to-toggle behavior for list items
+    function bindItemClicks(list){
+      for (const c of list){
+        const btn = document.querySelector(`[data-for="${c.id}"]`);
+        if (!btn) continue;
+        btn.addEventListener('click', () => {
+          c.checked = !c.checked;
+          c.dispatchEvent(new Event('change', {bubbles: true}));
+        });
+      }
+    }
+
+    bindItemClicks(pilotChecks);
+    bindItemClicks(attChecks);
+
+    function autoAssign(){
+      const size = currentSize();
+      if (!size) return;
+      const r = reqForSize(size);
+      selectFirstN(pilotChecks, r.pilots);
+      selectFirstN(attChecks, r.atts);
+      updateReqUI();
+    }
+
+    airplaneSelect.addEventListener('change', () => {
+      // When aircraft changes, we may now exceed the new max; trim deterministically
+      const size = currentSize();
+      if (!size){
+        updateReqUI();
+        return;
+      }
+      const r = reqForSize(size);
+      const trimTo = (list, max) => {
+        const checked = list.filter(c => c.checked);
+        if (checked.length <= max) return;
+        // keep the first max checked, uncheck the rest
+        checked.slice(max).forEach(c => { c.checked = false; setItemState(c); });
+      };
+      trimTo(pilotChecks, r.pilots);
+      trimTo(attChecks, r.atts);
+
+      // Business price required only for Big aircraft
+      const bizInput = document.getElementById('price_first');
+      if (bizInput){
+        bizInput.required = (size === 'Big');
+      }
+      updateReqUI();
+    });
+
+    autoBtn.addEventListener('click', autoAssign);
+
+    // Guard submit: must match required counts
+    const form = autoBtn.closest('form');
+    form.addEventListener('submit', (ev) => {
+      const size = currentSize();
+      if (!size) return;
+      const r = reqForSize(size);
+      if (checkedCount(pilotChecks) !== r.pilots || checkedCount(attChecks) !== r.atts){
+        ev.preventDefault();
+        alert(`Please select exactly ${r.pilots} pilots and ${r.atts} attendants.`);
+        return;
+      }
+
+      const bizInput = document.getElementById('price_first');
+      if (bizInput && (size === 'Big') && !bizInput.value.trim()){
+        ev.preventDefault();
+        alert('Please enter a Business class price for a Big aircraft.');
+      }
+    });
+
+    // initialize requirement state
+    const initSize = currentSize();
+    const bizInput = document.getElementById('price_first');
+    if (bizInput){
+      bizInput.required = (initSize === 'Big');
+    }
+    updateReqUI();
+  })();
+</script>
+{% endblock %}

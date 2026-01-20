@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
+  <div>
+    <h2 class="mb-1">Order Details <span class="text-muted">#{{order.ID}}</span></h2>
+    <div class="text-muted">Tickets, pricing, and cancellation eligibility.</div>
+  </div>
+  {% if session_role == 'member' %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('my_orders') }}"><i class="bi bi-arrow-left me-1"></i>Back to orders</a>
+  {% else %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('guest_lookup') }}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+  {% endif %}
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-body p-3 p-md-4">
+        <h5 class="mb-3">Summary</h5>
+        {% set st = (order.Status or '')|lower|replace(' ', '-') %}
+        <div class="mb-2">
+          <div class="text-muted small">Status</div>
+          <div><span class="badge status-badge status-{{ st }}">{{ order.Status }}</span></div>
+        </div>
+        <div class="mb-2">
+          <div class="text-muted small">Purchase date</div>
+          <div class="fw-semibold">{{ order.Date_of_purchase }}</div>
+        </div>
+        <div class="mb-2">
+          <div class="text-muted small">System total</div>
+          <div class="fw-semibold">{{ "$%.2f"|format(order.Total_price|float) }}</div>
+        </div>
+
+
+        <hr class="my-3">
+
+        {% if can_cancel %}
+          <form id="cancelOrderForm" id="cancelOrderForm" method="post" action="{{ url_for('cancel_order', order_id=order.ID) }}">
+            <input type="hidden" name="order_id" value="{{ order.ID }}">
+            {% if not session_role %}
+              <input type="hidden" name="guest_email" value="{{guest_email}}">
+            {% endif %}
+            <button type="button" class="btn btn-danger w-100" data-bs-toggle="modal" data-bs-target="#confirmCancelOrderModal" data-fee="{{ '%.2f' % ((order.Total_price|float) * 0.05) }}">
+              <i class="bi bi-x-octagon me-1"></i>Cancel order
+            </button>
+          </form>
+        {% else %}
+          <div class="alert alert-secondary mb-0">
+            <div class="fw-bold mb-1">Cancellation not available</div>
+            <div>{{ cancel_reason }}</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th class="ps-3">Flight</th>
+                <th>Date/Time</th>
+                <th>Route</th>
+                <th>Class</th>
+                <th>Seat</th>
+                <th>Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in tickets %}
+                <tr>
+                  <td class="ps-3 fw-bold">#{{t.Flight_ID}}</td>
+                  <td>{{ t.Date_of_departure }} {{ t.Time_of_departure|hm }}</td>
+                  <td>{{t.Origin_airport}} → {{t.Arrival_airport}}</td>
+                  <td>{{ t.CLASS_Type }}</td>
+                  <td>{{ t.SEAT_Column_number }}{{ t.SEAT_Row_num }}</td>
+                  <td class="fw-semibold">{{ "$%.2f"|format(t.Price|float) }}</td>
+                </tr>
+              {% endfor %}
+              {% if tickets|length == 0 %}
+                <tr>
+                  <td class="ps-3 py-4" colspan="6">
+                    <div class="text-muted">No tickets found for this order.</div>
+                  </td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+  <!-- Cancel order confirmation modal (customer/guest) -->
+  <div class="modal fade" id="confirmCancelOrderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Cancel order</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Are you sure you want to cancel this order?</p>
+          <div class="rounded border p-2 bg-light">
+            <div class="d-flex justify-content-between">
+              <span class="text-muted">Cancellation fee</span>
+              <strong>$<span id="cancelOrderFee">0.00</span></strong>
+            </div>
+            <div class="small text-muted mt-1">Your order total will be updated to the cancellation fee, and this action cannot be undone.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Go back</button>
+          <button type="button" class="btn btn-danger" id="confirmCancelOrderBtn">Continue cancellation</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const modalEl = document.getElementById('confirmCancelOrderModal');
+      if (!modalEl) return;
+
+      const feeEl = document.getElementById('cancelOrderFee');
+      const formEl = document.getElementById('cancelOrderForm');
+      const confirmBtn = document.getElementById('confirmCancelOrderBtn');
+
+      modalEl.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        if (!button) return;
+        const fee = button.getAttribute('data-fee') || '0.00';
+        if (feeEl) feeEl.textContent = fee;
+      });
+
+      if (confirmBtn && formEl) {
+        confirmBtn.addEventListener('click', function () {
+          formEl.submit();
+        });
+      }
+    })();
+  </script>
+
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
+  <div>
+    <h2 class="mb-1">Add aircraft</h2>
+    <div class="text-muted">Add a new airplane to the fleet and generate its seats.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('manager_aircraft') }}"><i class="bi bi-arrow-left me-1"></i>Back to aircraft</a>
+</div>
+
+<form method="post" class="card">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Aircraft ID</label>
+        <input type="number" min="1" step="1" class="form-control" name="airplane_id" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Purchase date</label>
+        <input type="date" class="form-control" name="purchase_date" required max="{{ today }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Manufacturer</label>
+        <select class="form-select" name="manufacturer" required>
+          <option value="Boeing">Boeing</option>
+          <option value="Airbus">Airbus</option>
+          <option value="Dassault">Dassault</option>
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Size</label>
+        <select class="form-select" name="size" id="aircraftSize" required>
+          <option value="Small">Small</option>
+          <option value="Big">Big</option>
+        </select>
+        <div class="form-text">Small = Regular only. Big = Regular + Business.</div>
+      </div>
+
+      <div class="col-12"><hr class="my-2"></div>
+
+      <div class="col-12">
+        <h5 class="mb-2">Regular class</h5>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Rows</label>
+        <input type="number" min="1" max="200" class="form-control" name="reg_rows" value="20" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Columns</label>
+        <input type="number" min="1" max="26" class="form-control" name="reg_cols" value="6" required>
+        <div class="form-text">Columns are mapped to A, B, C, ...</div>
+      </div>
+
+      <div id="businessBlock" class="col-12">
+        <div class="row g-3">
+          <div class="col-12">
+            <h5 class="mb-2 mt-2">Business class</h5>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Rows</label>
+            <input type="number" min="1" max="100" class="form-control" name="first_rows" value="6">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Columns</label>
+            <input type="number" min="1" max="26" class="form-control" name="first_cols" value="4">
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 mt-3">
+        <button class="btn btn-success"><i class="bi bi-plus-lg me-1"></i>Add aircraft</button>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+  (function(){
+    const sizeSel = document.getElementById('aircraftSize');
+    const block = document.getElementById('businessBlock');
+    function sync(){
+      const isBig = (sizeSel.value === 'Big');
+      block.style.display = isBig ? 'block' : 'none';
+      // If hidden, clear business inputs so server won't try to use them.
+      if(!isBig){
+        const r = block.querySelector('input[name="first_rows"]');
+        const c = block.querySelector('input[name="first_cols"]');
+        if(r) r.value = '';
+        if(c) c.value = '';
+      }
+    }
+    sizeSel.addEventListener('change', sync);
+    sync();
+  })();
+</script>
+
+{% endblock %}
