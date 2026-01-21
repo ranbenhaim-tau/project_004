@@ -759,7 +759,7 @@ def checkout():
             # Create the order first (ID is generated in code).
             cur.execute(
                 "INSERT INTO `ORDER`(ID, Status, Total_price, Date_of_purchase, Cancellation_fee, GUEST_Email, MEMBER_Email) "
-                "VALUES(%s, 'Active', %s, %s, %s, %s, %s)",
+                "VALUES(?, 'Active', ?, ?, ?, ?, ?)",
                 (order_id, total, date.today().isoformat(), cancellation_fee, guest_email, member_email),
             )
 
@@ -768,7 +768,7 @@ def checkout():
                 cur.execute(
                     """SELECT Airplane_ID, Availability
                        FROM TICKET
-                       WHERE Flight_ID=%s AND CLASS_Type=%s AND SEAT_Row_num=%s AND SEAT_Column_number=%s
+                       WHERE Flight_ID=? AND CLASS_Type=? AND SEAT_Row_num=? AND SEAT_Column_number=?
                        FOR UPDATE""",
                     (flight_id, cls, row, col),
                 )
@@ -785,8 +785,8 @@ def checkout():
                     """SELECT 1
                        FROM TICKET_ORDER TO1
                        JOIN `ORDER` O1 ON O1.ID = TO1.Order_ID
-                       WHERE TO1.Airplane_ID=%s AND TO1.Flight_ID=%s
-                         AND TO1.SEAT_Row_num=%s AND TO1.SEAT_Column_number=%s AND TO1.CLASS_Type=%s
+                       WHERE TO1.Airplane_ID=? AND TO1.Flight_ID=?
+                         AND TO1.SEAT_Row_num=? AND TO1.SEAT_Column_number=? AND TO1.CLASS_Type=?
                          AND O1.Status='Active'
                        LIMIT 1
                        FOR UPDATE""",
@@ -798,7 +798,7 @@ def checkout():
                 # Link ticket to order (history is kept forever).
                 cur.execute(
                     """INSERT INTO TICKET_ORDER(Airplane_ID, Flight_ID, SEAT_Row_num, SEAT_Column_number, CLASS_Type, Order_ID)
-                       VALUES(%s,%s,%s,%s,%s,%s)""",
+                       VALUES(?,?,?,?,?,?)""",
                     (airplane_id, flight_id, row, col, cls, order_id),
                 )
 
@@ -806,7 +806,7 @@ def checkout():
                 cur.execute(
                     """UPDATE TICKET
                        SET Availability=0
-                       WHERE Airplane_ID=%s AND Flight_ID=%s AND CLASS_Type=%s AND SEAT_Row_num=%s AND SEAT_Column_number=%s""",
+                       WHERE Airplane_ID=? AND Flight_ID=? AND CLASS_Type=? AND SEAT_Row_num=? AND SEAT_Column_number=?""",
                     (airplane_id, flight_id, cls, row, col),
                 )
 
@@ -1004,7 +1004,7 @@ def cancel_order(order_id):
         cur = conn.cursor(dictionary=True)
 
         # Lock the order row.
-        cur.execute("SELECT * FROM `ORDER` WHERE ID=%s FOR UPDATE", (order_id,))
+        cur.execute("SELECT * FROM `ORDER` WHERE ID=? FOR UPDATE", (order_id,))
         o_locked = cur.fetchone()
         if not o_locked:
             raise Exception('Order not found')
@@ -1025,7 +1025,7 @@ def cancel_order(order_id):
 
         # Update order status and final price. (Do NOT change Cancellation_fee here.)
         cur.execute(
-            "UPDATE `ORDER` SET Status='Customer Cancellation', Total_price=%s WHERE ID=%s",
+            "UPDATE `ORDER` SET Status='Customer Cancellation', Total_price=? WHERE ID=?",
             (fee, order_id),
         )
 
@@ -1033,7 +1033,7 @@ def cancel_order(order_id):
         cur.execute(
             """SELECT Airplane_ID, Flight_ID, SEAT_Row_num, SEAT_Column_number, CLASS_Type
                FROM TICKET_ORDER
-               WHERE Order_ID=%s""",
+               WHERE Order_ID=?""",
             (order_id,),
         )
         keys = cur.fetchall() or []
@@ -1043,7 +1043,7 @@ def cancel_order(order_id):
             cur.execute(
                 """SELECT Availability
                    FROM TICKET
-                   WHERE Airplane_ID=%s AND Flight_ID=%s AND SEAT_Row_num=%s AND SEAT_Column_number=%s AND CLASS_Type=%s
+                   WHERE Airplane_ID=? AND Flight_ID=? AND SEAT_Row_num=? AND SEAT_Column_number=? AND CLASS_Type=?
                    FOR UPDATE""",
                 (k['Airplane_ID'], k['Flight_ID'], k['SEAT_Row_num'], k['SEAT_Column_number'], k['CLASS_Type']),
             )
@@ -1053,7 +1053,7 @@ def cancel_order(order_id):
                 """SELECT 1
                    FROM TICKET_ORDER TO2
                    JOIN `ORDER` O2 ON O2.ID = TO2.Order_ID
-                   WHERE TO2.Airplane_ID=%s AND TO2.Flight_ID=%s AND TO2.SEAT_Row_num=%s AND TO2.SEAT_Column_number=%s AND TO2.CLASS_Type=%s
+                   WHERE TO2.Airplane_ID=? AND TO2.Flight_ID=? AND TO2.SEAT_Row_num=? AND TO2.SEAT_Column_number=? AND TO2.CLASS_Type=?
                      AND O2.Status='Active'
                    LIMIT 1
                    FOR UPDATE""",
@@ -1063,8 +1063,8 @@ def cancel_order(order_id):
 
             cur.execute(
                 """UPDATE TICKET
-                   SET Availability=%s
-                   WHERE Airplane_ID=%s AND Flight_ID=%s AND SEAT_Row_num=%s AND SEAT_Column_number=%s AND CLASS_Type=%s""",
+                   SET Availability=?
+                   WHERE Airplane_ID=? AND Flight_ID=? AND SEAT_Row_num=? AND SEAT_Column_number=? AND CLASS_Type=?""",
                 (0 if has_active else 1, k['Airplane_ID'], k['Flight_ID'], k['SEAT_Row_num'], k['SEAT_Column_number'], k['CLASS_Type']),
             )
 
@@ -1280,14 +1280,14 @@ def manager_aircraft_add():
 
             cur.execute(
                 """INSERT INTO AIRPLANE(ID, Date_of_purchase, Manufacturer, Size)
-                   VALUES(%s,%s,%s,%s)""",
+                   VALUES(?,?,?,?)""",
                 (aid, purchase_date, manufacturer, size),
             )
 
             # Regular class
             cur.execute(
                 """INSERT INTO CLASS(Type, Airplane_ID, Number_of_rows, Number_of_columns)
-                   VALUES('Regular',%s,%s,%s)""",
+                   VALUES('Regular',?,?,?)""",
                 (aid, reg_rows_i, reg_cols_i),
             )
 
@@ -1295,13 +1295,13 @@ def manager_aircraft_add():
             if size == "Big":
                 cur.execute(
                     """INSERT INTO CLASS(Type, Airplane_ID, Number_of_rows, Number_of_columns)
-                       VALUES('First',%s,%s,%s)""",
+                       VALUES('First',?,?,?)""",
                     (aid, first_rows_i, first_cols_i),
                 )
 
             cur.executemany(
                 """INSERT INTO SEAT(Class_Type, Airplane_ID, Row_num, Column_number)
-                   VALUES(%s,%s,%s,%s)""",
+                   VALUES(?,?,?,?)""",
                 seat_rows,
             )
 
@@ -1645,32 +1645,32 @@ def manager_cancel_flight(flight_id):
         cur = conn.cursor(dictionary=True)
 
         # Lock flight row
-        cur.execute("SELECT Status FROM FLIGHT WHERE ID=%s FOR UPDATE", (flight_id,))
+        cur.execute("SELECT Status FROM FLIGHT WHERE ID=? FOR UPDATE", (flight_id,))
         f_locked = cur.fetchone()
         if not f_locked:
             raise Exception('Flight not found')
 
-        cur.execute("UPDATE FLIGHT SET Status='Canceled' WHERE ID=%s", (flight_id,))
+        cur.execute("UPDATE FLIGHT SET Status='Canceled' WHERE ID=?", (flight_id,))
 
         # Find active orders on this flight and lock them
         cur.execute(
             """SELECT DISTINCT O.ID
                FROM `ORDER` O
                JOIN TICKET_ORDER to1 ON to1.Order_ID=O.ID
-               WHERE to1.Flight_ID=%s AND O.Status='Active'
+               WHERE to1.Flight_ID=? AND O.Status='Active'
                FOR UPDATE""",
             (flight_id,),
         )
         orders = cur.fetchall() or []
         for orec in orders:
             cur.execute(
-                "UPDATE `ORDER` SET Status='System Cancellation', Total_price=0, Cancellation_fee=0 WHERE ID=%s",
+                "UPDATE `ORDER` SET Status='System Cancellation', Total_price=0, Cancellation_fee=0 WHERE ID=?",
                 (orec['ID'],),
             )
 
         # Keep ticket-to-order linkage for history/audit purposes.
         # Since the flight is cancelled, tickets should not become re-sellable.
-        cur.execute("UPDATE TICKET SET Availability=0 WHERE Flight_ID=%s", (flight_id,))
+        cur.execute("UPDATE TICKET SET Availability=0 WHERE Flight_ID=?", (flight_id,))
 
         conn.commit()
     except Exception:
@@ -1708,7 +1708,7 @@ def manager_aircrew_add():
         house = request.form.get("house","").strip()
         start = request.form.get("start","").strip()
         typ = request.form.get("typ","").strip()
-        training = True if request.form.get("training")=="1" else False
+        training = 1 if request.form.get("training")=="1" else 0
         if not (cid and first and last and phone and city and street and house and start and typ):
             flash("Please fill in all fields.", "warning")
             return redirect(url_for("manager_aircrew_add"))
