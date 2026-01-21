@@ -3,7 +3,7 @@ USE FLYTAU;
 -- Query 1 - Average Occupancy of Completed Flights: -------
 
 SELECT 
-    AVG(occupied_count / total_seats) * 100 AS average_occupancy_percentage
+    AVG(CAST(occupied_count AS REAL) / total_seats) * 100 AS average_occupancy_percentage
 FROM (
     SELECT 
         f.ID,
@@ -69,7 +69,7 @@ SELECT
     ac.First_name,
     ac.Last_name,
     qt.Flight_Type AS Flight_Type,
-    COALESCE(ROUND(SUM(fr.Flight_duration) / 60, 2), 0) AS Total_Flight_Hours
+    COALESCE(ROUND(SUM(fr.Flight_duration) / 60.0, 2), 0) AS Total_Flight_Hours
 FROM qualified_types AS qt
 JOIN AIRCREW AS ac
     ON ac.ID = qt.Aircrew_ID
@@ -91,9 +91,9 @@ ORDER BY
 SELECT 
     strftime('%Y/%m', Date_of_purchase) AS Month,
     ROUND(
-        (SUM(CASE WHEN Status IN ('Customer Cancellation') THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2
+        (SUM(CASE WHEN Status IN ('Customer Cancellation') THEN 1 ELSE 0 END) * 1.0 / COUNT(*)) * 100, 2
     ) AS Cancellation_Rate
-FROM 
+FROM  
     `ORDER`
 GROUP BY 
     strftime('%Y/%m', Date_of_purchase)
