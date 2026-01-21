@@ -332,7 +332,6 @@ def flights_search():
 
     params = []
     # "Open for sale" means: Active/Full AND not departed yet AND at least one available seat.
-    # We will filter by availability in the main query or trust the status.
     where = [
         "F.Status IN ('Active','Full')",
         "datetime(F.Date_of_departure || ' ' || F.Time_of_departure) >= datetime('now', 'localtime')"
