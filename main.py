@@ -78,7 +78,6 @@ def _auto_complete_flights():
     try:
         now = datetime.now()
         last = _LAST_FLIGHT_STATUS_REFRESH["ts"]
-        # Optimized: Run only once every 5 minutes (300 seconds) instead of 60s
         if last is None or (now - last).total_seconds() >= 300:
             # 1) Flights become Completed once they *depart* (per project requirements).
             execute(
@@ -333,7 +332,6 @@ def flights_search():
 
     params = []
     # "Open for sale" means: Active/Full AND not departed yet AND at least one available seat.
-    # Optimized: Removed the EXISTS subquery for performance on large datasets.
     # We will filter by availability in the main query or trust the status.
     where = [
         "F.Status IN ('Active','Full')",
@@ -396,7 +394,6 @@ def api_available_dates():
 
     # Only show dates that can actually be booked (Active/Full), that are not yet departed,
     # and that still have at least one available seat.
-    # Optimized: Removed EXISTS subquery for performance.
     rows = query_all(
         """
         SELECT DISTINCT Date_of_departure AS d
