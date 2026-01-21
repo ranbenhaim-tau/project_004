@@ -183,3 +183,10 @@ CREATE TABLE `AIRCREW_ASSIGNMENT` (
   FOREIGN KEY (`Aircrew_ID`) REFERENCES `AIRCREW`(`ID`) ON UPDATE CASCADE,
   FOREIGN KEY (`Flight_ID`) REFERENCES `FLIGHT`(`ID`) ON UPDATE CASCADE
 );
+
+/* Performance Indices */
+CREATE INDEX IF NOT EXISTS idx_ticket_flight_id ON TICKET(Flight_ID);
+CREATE INDEX IF NOT EXISTS idx_flight_date ON FLIGHT(Date_of_departure);
+CREATE INDEX IF NOT EXISTS idx_flight_origin ON FLIGHT(Origin_airport);
+CREATE INDEX IF NOT EXISTS idx_flight_dest ON FLIGHT(Arrival_airport);
+CREATE INDEX IF NOT EXISTS idx_flight_status ON FLIGHT(Status);
