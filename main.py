@@ -356,7 +356,7 @@ def flights_search():
             (SELECT MIN(Price) FROM TICKET T WHERE T.Flight_ID=F.ID AND T.CLASS_Type='Regular') AS price_regular,
             (SELECT MIN(Price) FROM TICKET T WHERE T.Flight_ID=F.ID AND T.CLASS_Type='First') AS price_first,
             (SELECT COUNT(*) FROM TICKET T WHERE T.Flight_ID=F.ID) AS total_tickets,
-            (SELECT COUNT(*) FROM TICKET T WHERE T.Flight_ID=F.ID AND T.Availability=TRUE) AS available_tickets
+            (SELECT COUNT(*) FROM TICKET T WHERE T.Flight_ID=F.ID AND T.Availability=1) AS available_tickets
         FROM FLIGHT F
         JOIN AIRPLANE A ON A.ID = F.Airplane_ID
         {where_sql}
@@ -441,7 +441,7 @@ def flights_results():
             (SELECT MIN(Price) FROM TICKET T WHERE T.Flight_ID=F.ID AND T.CLASS_Type='Regular') AS price_regular,
             (SELECT MIN(Price) FROM TICKET T WHERE T.Flight_ID=F.ID AND T.CLASS_Type='First') AS price_first,
             (SELECT COUNT(*) FROM TICKET T WHERE T.Flight_ID=F.ID) AS total_tickets,
-            (SELECT COUNT(*) FROM TICKET T WHERE T.Flight_ID=F.ID AND T.Availability=TRUE) AS available_tickets
+            (SELECT COUNT(*) FROM TICKET T WHERE T.Flight_ID=F.ID AND T.Availability=1) AS available_tickets
         FROM FLIGHT F
         JOIN AIRPLANE A ON A.ID = F.Airplane_ID
         {where_sql}
@@ -458,7 +458,7 @@ def flight_book(flight_id):
 
     f = query_one(
         """
-        SELECT F.*, (SELECT COUNT(*) FROM TICKET T WHERE T.Flight_ID=F.ID AND T.Availability=TRUE) AS available_tickets
+        SELECT F.*, (SELECT COUNT(*) FROM TICKET T WHERE T.Flight_ID=F.ID AND T.Availability=1) AS available_tickets
         FROM FLIGHT F
         WHERE F.ID=%s
         """,
@@ -589,7 +589,7 @@ def flight_seats(flight_id):
                 """,
                 (flight_id, cls, r, c)
             )
-            if not row or not row.get("Availability"):
+            if not row or row.get("Availability") != 1:
                 flash("One or more selected seats are no longer available. Please choose again.", "danger")
                 return redirect(url_for("flight_seats", flight_id=flight_id))
 
@@ -644,7 +644,7 @@ def checkout():
           AND (CLASS_Type, SEAT_Row_num, SEAT_Column_number) IN ({placeholders})
     """, tuple([flight_id] + params))
 
-    if len(tickets) != len(parsed) or any(not t["Availability"] for t in tickets):
+    if len(tickets) != len(parsed) or any(t.get("Availability") != 1 for t in tickets):
         flash("One or more selected seats are no longer available. Please choose again.", "danger")
         return redirect(url_for("flight_seats", flight_id=flight_id))
 
@@ -775,7 +775,7 @@ def checkout():
                 trow = cur.fetchone()
                 if not trow:
                     raise Exception('Seat not found')
-                if not bool(trow.get('Availability')):
+                if trow.get('Availability') != 1:
                     raise Exception('Seat not available')
 
                 airplane_id = trow['Airplane_ID']
@@ -805,7 +805,7 @@ def checkout():
                 # Mark ticket as unavailable.
                 cur.execute(
                     """UPDATE TICKET
-                       SET Availability=FALSE
+                       SET Availability=0
                        WHERE Airplane_ID=%s AND Flight_ID=%s AND CLASS_Type=%s AND SEAT_Row_num=%s AND SEAT_Column_number=%s""",
                     (airplane_id, flight_id, cls, row, col),
                 )
@@ -1065,7 +1065,7 @@ def cancel_order(order_id):
                 """UPDATE TICKET
                    SET Availability=%s
                    WHERE Airplane_ID=%s AND Flight_ID=%s AND SEAT_Row_num=%s AND SEAT_Column_number=%s AND CLASS_Type=%s""",
-                (False if has_active else True, k['Airplane_ID'], k['Flight_ID'], k['SEAT_Row_num'], k['SEAT_Column_number'], k['CLASS_Type']),
+                (0 if has_active else 1, k['Airplane_ID'], k['Flight_ID'], k['SEAT_Row_num'], k['SEAT_Column_number'], k['CLASS_Type']),
             )
 
         conn.commit()
@@ -1354,7 +1354,7 @@ def manager_flights():
             A.Size,
             A.Manufacturer,
             (SELECT COUNT(*) FROM TICKET T WHERE T.Flight_ID=F.ID) AS total_tickets,
-            (SELECT COUNT(*) FROM TICKET T WHERE T.Flight_ID=F.ID AND T.Availability=TRUE) AS available_tickets,
+            (SELECT COUNT(*) FROM TICKET T WHERE T.Flight_ID=F.ID AND T.Availability=1) AS available_tickets,
             GROUP_CONCAT(CASE WHEN AC.Type='Pilot'
                 THEN AC.First_name || ' ' || AC.Last_name || ' (#' || AC.ID || ')' END, ', ') AS pilots,
             GROUP_CONCAT(CASE WHEN AC.Type='Flight attendant'
@@ -1608,7 +1608,7 @@ def manager_add_flight_step2():
             ticket_rows.append((airplane_id, flight_id, s["Row_num"], s["Column_number"], cls, price))
 
         executemany("""INSERT INTO TICKET(Airplane_ID, Flight_ID, SEAT_Row_num, SEAT_Column_number, CLASS_Type, Price, Availability)
-                      VALUES(%s,%s,%s,%s,%s,%s,TRUE)""", ticket_rows)
+                      VALUES(%s,%s,%s,%s,%s,%s,1)""", ticket_rows)
 
         session.pop("new_flight", None)
         flash(f"Flight created successfully. Flight ID: {flight_id}", "success")
@@ -1670,7 +1670,7 @@ def manager_cancel_flight(flight_id):
 
         # Keep ticket-to-order linkage for history/audit purposes.
         # Since the flight is cancelled, tickets should not become re-sellable.
-        cur.execute("UPDATE TICKET SET Availability=FALSE WHERE Flight_ID=%s", (flight_id,))
+        cur.execute("UPDATE TICKET SET Availability=0 WHERE Flight_ID=%s", (flight_id,))
 
         conn.commit()
     except Exception:
