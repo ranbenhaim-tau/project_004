@@ -1,140 +1,157 @@
-SET SQL_SAFE_UPDATES = 0;
+/* SQLite Schema */
+PRAGMA foreign_keys = OFF;
 
-DROP SCHEMA IF EXISTS `FLYTAU`;
+DROP TABLE IF EXISTS `AIRCREW_ASSIGNMENT`;
+DROP TABLE IF EXISTS `TICKET_ORDER`;
+DROP TABLE IF EXISTS `TICKET`;
+DROP TABLE IF EXISTS `FLIGHT`;
+DROP TABLE IF EXISTS `SEAT`;
+DROP TABLE IF EXISTS `CLASS`;
+DROP TABLE IF EXISTS `AIRPLANE`;
+DROP TABLE IF EXISTS `PHONE_NUMBER_MEMBER`;
+DROP TABLE IF EXISTS `PHONE_NUMBER_GUEST`;
+DROP TABLE IF EXISTS `ORDER`;
+DROP TABLE IF EXISTS `MEMBER`;
+DROP TABLE IF EXISTS `GUEST`;
+DROP TABLE IF EXISTS `FLIGHT_ROUTE`;
+DROP TABLE IF EXISTS `AIRCREW`;
+DROP TABLE IF EXISTS `MANAGER`;
 
-CREATE SCHEMA IF NOT EXISTS `FLYTAU`;
-
-USE FLYTAU;
+PRAGMA foreign_keys = ON;
 
 CREATE TABLE `MANAGER` (
-  `ID` VARCHAR(100) NOT NULL,
-  `City` VARCHAR(50) NOT NULL,
-  `Street` VARCHAR(50) NOT NULL,
-  `House_Number` VARCHAR(50) NOT NULL,
-  `Start_date_of_employment` DATE NOT NULL,
-  `First_name` VARCHAR(20) NOT NULL,
-  `Last_name` VARCHAR(20) NOT NULL,
-  `Phone_number` VARCHAR(20) NOT NULL,
-  `Password` VARCHAR(255) NOT NULL,
-  PRIMARY KEY (`ID`));
+  `ID` TEXT NOT NULL,
+  `City` TEXT NOT NULL,
+  `Street` TEXT NOT NULL,
+  `House_Number` TEXT NOT NULL,
+  `Start_date_of_employment` TEXT NOT NULL,
+  `First_name` TEXT NOT NULL,
+  `Last_name` TEXT NOT NULL,
+  `Phone_number` TEXT NOT NULL,
+  `Password` TEXT NOT NULL,
+  PRIMARY KEY (`ID`)
+);
 
 CREATE TABLE `AIRCREW` (
-  `ID` INT NOT NULL,
-  `City` VARCHAR(50) NOT NULL,
-  `Street` VARCHAR(50) NOT NULL,
-  `House_Number` VARCHAR(50) NOT NULL,
-  `Start_date_of_employment` DATE NOT NULL,
-  `First_name` VARCHAR(50) NOT NULL,
-  `Last_name` VARCHAR(20) NOT NULL,
-  `Phone_number` VARCHAR(20) NOT NULL,
-  `Type` ENUM('Pilot','Flight attendant') NOT NULL,
-  `Training` BOOLEAN NOT NULL DEFAULT FALSE,
-  PRIMARY KEY (`ID`));
+  `ID` INTEGER NOT NULL,
+  `City` TEXT NOT NULL,
+  `Street` TEXT NOT NULL,
+  `House_Number` TEXT NOT NULL,
+  `Start_date_of_employment` TEXT NOT NULL,
+  `First_name` TEXT NOT NULL,
+  `Last_name` TEXT NOT NULL,
+  `Phone_number` TEXT NOT NULL,
+  `Type` TEXT NOT NULL CHECK(`Type` IN ('Pilot','Flight attendant')),
+  `Training` INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (`ID`)
+);
 
 CREATE TABLE `FLIGHT_ROUTE` (
-  `Origin_airport` VARCHAR(3) NOT NULL,
-  `Arrival_airport` VARCHAR(3) NOT NULL,
-  `Flight_duration` INT NOT NULL, -- minutes
+  `Origin_airport` TEXT NOT NULL,
+  `Arrival_airport` TEXT NOT NULL,
+  `Flight_duration` INTEGER NOT NULL,
   PRIMARY KEY (`Origin_airport`, `Arrival_airport`),
-  CHECK (Flight_duration > 0));
+  CHECK (`Flight_duration` > 0)
+);
 
 CREATE TABLE `GUEST` (
-  `Email` VARCHAR(30) NOT NULL,
-  `First_name_in_English` VARCHAR(50) NOT NULL,
-  `Last_name_in_English` VARCHAR(50) NOT NULL,
-  PRIMARY KEY (`Email`));
+  `Email` TEXT NOT NULL,
+  `First_name_in_English` TEXT NOT NULL,
+  `Last_name_in_English` TEXT NOT NULL,
+  PRIMARY KEY (`Email`)
+);
 
 CREATE TABLE `MEMBER` (
-  `Email` VARCHAR(30) NOT NULL,
-  `First_name_in_English` VARCHAR(50) NOT NULL,
-  `Last_name_in_English` VARCHAR(50) NOT NULL,
-  `Passport_number` VARCHAR(30) NOT NULL,
-  `Date_of_birth` DATE NOT NULL,
-  `Register_date` DATE NOT NULL,
-  `Password` VARCHAR(255) NOT NULL,
-  PRIMARY KEY (`Email`));
+  `Email` TEXT NOT NULL,
+  `First_name_in_English` TEXT NOT NULL,
+  `Last_name_in_English` TEXT NOT NULL,
+  `Passport_number` TEXT NOT NULL,
+  `Date_of_birth` TEXT NOT NULL,
+  `Register_date` TEXT NOT NULL,
+  `Password` TEXT NOT NULL,
+  PRIMARY KEY (`Email`)
+);
 
 CREATE TABLE `ORDER` (
-  `ID` INT NOT NULL,
-  `Status` ENUM('Active','Completed','Customer Cancellation','System Cancellation') NOT NULL,
-  `Total_price` DECIMAL(10,2) NOT NULL,
-  `Date_of_purchase` DATE NOT NULL,
-  `Cancellation_fee` DECIMAL(10,2) NOT NULL DEFAULT 0,
-  `GUEST_Email` VARCHAR(30) NULL, 
-  `MEMBER_Email` VARCHAR(30) NULL, 
-  FOREIGN KEY (`GUEST_Email`) REFERENCES `GUEST`(`Email`)
-  ON UPDATE CASCADE,
-  FOREIGN KEY (`MEMBER_Email`) REFERENCES `MEMBER`(`Email`)
-  ON UPDATE CASCADE,
-  PRIMARY KEY (`ID`));
+  `ID` INTEGER NOT NULL,
+  `Status` TEXT NOT NULL CHECK(`Status` IN ('Active','Completed','Customer Cancellation','System Cancellation')),
+  `Total_price` REAL NOT NULL,
+  `Date_of_purchase` TEXT NOT NULL,
+  `Cancellation_fee` REAL NOT NULL DEFAULT 0,
+  `GUEST_Email` TEXT NULL, 
+  `MEMBER_Email` TEXT NULL, 
+  FOREIGN KEY (`GUEST_Email`) REFERENCES `GUEST`(`Email`) ON UPDATE CASCADE,
+  FOREIGN KEY (`MEMBER_Email`) REFERENCES `MEMBER`(`Email`) ON UPDATE CASCADE,
+  PRIMARY KEY (`ID`)
+);
 
 CREATE TABLE `PHONE_NUMBER_GUEST` (
-  `Email` VARCHAR(30) NOT NULL,
-  `Phone_number` VARCHAR(20) NOT NULL,
+  `Email` TEXT NOT NULL,
+  `Phone_number` TEXT NOT NULL,
   PRIMARY KEY (`Email`, `Phone_number`),
-  FOREIGN KEY (`Email`) REFERENCES `GUEST`(`Email`)
-  ON UPDATE CASCADE);
+  FOREIGN KEY (`Email`) REFERENCES `GUEST`(`Email`) ON UPDATE CASCADE
+);
 
 CREATE TABLE `PHONE_NUMBER_MEMBER` (
-  `Email` VARCHAR(30) NOT NULL,
-  `Phone_number` VARCHAR(20) NOT NULL,
+  `Email` TEXT NOT NULL,
+  `Phone_number` TEXT NOT NULL,
   PRIMARY KEY (`Email`, `Phone_number`),
-  FOREIGN KEY (`Email`) REFERENCES `MEMBER`(`Email`)
-  ON UPDATE CASCADE);
+  FOREIGN KEY (`Email`) REFERENCES `MEMBER`(`Email`) ON UPDATE CASCADE
+);
 
 CREATE TABLE `AIRPLANE` (
-  `ID` INT NOT NULL,
-  `Date_of_purchase` DATE NOT NULL,
-  `Manufacturer` ENUM('Boeing','Airbus','Dassault') NOT NULL,
-  `Size` ENUM('Big','Small') NOT NULL,
-  PRIMARY KEY (`ID`));
+  `ID` INTEGER NOT NULL,
+  `Date_of_purchase` TEXT NOT NULL,
+  `Manufacturer` TEXT NOT NULL CHECK(`Manufacturer` IN ('Boeing','Airbus','Dassault')),
+  `Size` TEXT NOT NULL CHECK(`Size` IN ('Big','Small')),
+  PRIMARY KEY (`ID`)
+);
 
 CREATE TABLE `CLASS` (
-  `Type` ENUM('First','Regular') NOT NULL,
-  `Airplane_ID` INT NOT NULL,
-  `Number_of_rows` INT NOT NULL,
-  `Number_of_columns` INT NOT NULL,
+  `Type` TEXT NOT NULL CHECK(`Type` IN ('First','Regular')),
+  `Airplane_ID` INTEGER NOT NULL,
+  `Number_of_rows` INTEGER NOT NULL,
+  `Number_of_columns` INTEGER NOT NULL,
   PRIMARY KEY (`Airplane_ID`, `Type`),
-  FOREIGN KEY (`Airplane_ID`) REFERENCES `AIRPLANE`(`ID`)
-  ON UPDATE CASCADE,
-  CHECK (Number_of_rows > 0 AND Number_of_columns > 0));
+  FOREIGN KEY (`Airplane_ID`) REFERENCES `AIRPLANE`(`ID`) ON UPDATE CASCADE,
+  CHECK (`Number_of_rows` > 0 AND `Number_of_columns` > 0)
+);
 
 CREATE TABLE `SEAT` (
-  `Class_Type` ENUM('First','Regular') NOT NULL,
-  `Airplane_ID` INT NOT NULL,
-  `Row_num` INT NOT NULL,
-  `Column_number` CHAR(1) NOT NULL,
+  `Class_Type` TEXT NOT NULL CHECK(`Class_Type` IN ('First','Regular')),
+  `Airplane_ID` INTEGER NOT NULL,
+  `Row_num` INTEGER NOT NULL,
+  `Column_number` TEXT NOT NULL,
   PRIMARY KEY (`Airplane_ID`, `Class_Type`, `Row_num`, `Column_number`),
-  FOREIGN KEY (`Airplane_ID`, `Class_Type`) REFERENCES `CLASS`(`Airplane_ID`, `Type`)
-  ON UPDATE CASCADE,
-  CHECK (Column_number BETWEEN 'A' AND 'Z'),
-  CHECK (Row_num > 0));
+  FOREIGN KEY (`Airplane_ID`, `Class_Type`) REFERENCES `CLASS`(`Airplane_ID`, `Type`) ON UPDATE CASCADE,
+  CHECK (`Column_number` BETWEEN 'A' AND 'Z'),
+  CHECK (`Row_num` > 0)
+);
 
 CREATE TABLE `FLIGHT` (
-  `ID` VARCHAR(10) NOT NULL,
-  `Date_of_departure` DATE NOT NULL,
-  `Time_of_departure` TIME NOT NULL,
-  `Status` ENUM('Active','Full','Completed','Canceled') NOT NULL DEFAULT 'Active',
-  `Arrival_date` DATE NOT NULL,
-  `Arrival_time` TIME NOT NULL,
-  `Type` ENUM('Long','Short') NOT NULL,
-  `Airplane_ID` INT NOT NULL,
-  `Origin_airport` VARCHAR(3) NOT NULL,
-  `Arrival_airport` VARCHAR(3) NOT NULL,
+  `ID` TEXT NOT NULL,
+  `Date_of_departure` TEXT NOT NULL,
+  `Time_of_departure` TEXT NOT NULL,
+  `Status` TEXT NOT NULL DEFAULT 'Active' CHECK(`Status` IN ('Active','Full','Completed','Canceled')),
+  `Arrival_date` TEXT NOT NULL,
+  `Arrival_time` TEXT NOT NULL,
+  `Type` TEXT NOT NULL CHECK(`Type` IN ('Long','Short')),
+  `Airplane_ID` INTEGER NOT NULL,
+  `Origin_airport` TEXT NOT NULL,
+  `Arrival_airport` TEXT NOT NULL,
   PRIMARY KEY (`ID`),
-  FOREIGN KEY (`Airplane_ID`) REFERENCES `AIRPLANE`(`ID`)
-  ON UPDATE CASCADE,
-  FOREIGN KEY (`Origin_airport`,`Arrival_airport`) REFERENCES `FLIGHT_ROUTE`(`Origin_airport`,`Arrival_airport`)
-  ON UPDATE CASCADE);
+  FOREIGN KEY (`Airplane_ID`) REFERENCES `AIRPLANE`(`ID`) ON UPDATE CASCADE,
+  FOREIGN KEY (`Origin_airport`,`Arrival_airport`) REFERENCES `FLIGHT_ROUTE`(`Origin_airport`,`Arrival_airport`) ON UPDATE CASCADE
+);
 
 CREATE TABLE `TICKET` (
-  `Airplane_ID` INT NOT NULL,
-  `Flight_ID` VARCHAR(10) NOT NULL,
-  `SEAT_Row_num` INT NOT NULL,
-  `SEAT_Column_number` CHAR(1) NOT NULL,
-  `CLASS_Type` ENUM('First','Regular') NOT NULL,
-  `Price` DECIMAL(10,2) NOT NULL,
-  `Availability` BOOLEAN NOT NULL DEFAULT TRUE,
+  `Airplane_ID` INTEGER NOT NULL,
+  `Flight_ID` TEXT NOT NULL,
+  `SEAT_Row_num` INTEGER NOT NULL,
+  `SEAT_Column_number` TEXT NOT NULL,
+  `CLASS_Type` TEXT NOT NULL CHECK(`CLASS_Type` IN ('First','Regular')),
+  `Price` REAL NOT NULL,
+  `Availability` INTEGER NOT NULL DEFAULT 1,
   PRIMARY KEY (`Airplane_ID`,`Flight_ID`,`SEAT_Row_num`,`SEAT_Column_number`,`CLASS_Type`),
   FOREIGN KEY (`Airplane_ID`, `CLASS_Type`, `SEAT_Row_num`, `SEAT_Column_number`)
     REFERENCES `SEAT`(`Airplane_ID`, `Class_Type`, `Row_num`, `Column_number`)
@@ -143,31 +160,26 @@ CREATE TABLE `TICKET` (
     ON UPDATE CASCADE
 );
 
-
 CREATE TABLE `TICKET_ORDER` (
-  `Airplane_ID` INT NOT NULL,
-  `Flight_ID` VARCHAR(10) NOT NULL,
-  `SEAT_Row_num` INT NOT NULL,
-  `SEAT_Column_number` CHAR(1) NOT NULL,
-  `CLASS_Type` ENUM('First','Regular') NOT NULL,
-  `Order_ID` INT NOT NULL,
+  `Airplane_ID` INTEGER NOT NULL,
+  `Flight_ID` TEXT NOT NULL,
+  `SEAT_Row_num` INTEGER NOT NULL,
+  `SEAT_Column_number` TEXT NOT NULL,
+  `CLASS_Type` TEXT NOT NULL CHECK(`CLASS_Type` IN ('First','Regular')),
+  `Order_ID` INTEGER NOT NULL,
   PRIMARY KEY (`Airplane_ID`,`Flight_ID`,`SEAT_Row_num`,`SEAT_Column_number`,`CLASS_Type`,`Order_ID`),
-  INDEX `idx_ticket_order_order` (`Order_ID`),
-  CONSTRAINT `fk_ticket_order_ticket` FOREIGN KEY (`Airplane_ID`,`Flight_ID`,`SEAT_Row_num`,`SEAT_Column_number`,`CLASS_Type`)
+  FOREIGN KEY (`Airplane_ID`,`Flight_ID`,`SEAT_Row_num`,`SEAT_Column_number`,`CLASS_Type`)
     REFERENCES `TICKET`(`Airplane_ID`,`Flight_ID`,`SEAT_Row_num`,`SEAT_Column_number`,`CLASS_Type`)
     ON UPDATE CASCADE,
-  CONSTRAINT `fk_ticket_order_order` FOREIGN KEY (`Order_ID`)
+  FOREIGN KEY (`Order_ID`)
     REFERENCES `ORDER`(`ID`)
     ON UPDATE CASCADE
 );
 
-
-
 CREATE TABLE `AIRCREW_ASSIGNMENT` (
-  `Aircrew_ID` INT NOT NULL,
-  `Flight_ID` VARCHAR(10) NOT NULL,
+  `Aircrew_ID` INTEGER NOT NULL,
+  `Flight_ID` TEXT NOT NULL,
   PRIMARY KEY (`Aircrew_ID`, `Flight_ID`),
-  FOREIGN KEY (`Aircrew_ID`) REFERENCES `AIRCREW`(`ID`)
-  ON UPDATE CASCADE,
-  FOREIGN KEY (`Flight_ID`) REFERENCES `FLIGHT`(`ID`)
-ON UPDATE CASCADE);
+  FOREIGN KEY (`Aircrew_ID`) REFERENCES `AIRCREW`(`ID`) ON UPDATE CASCADE,
+  FOREIGN KEY (`Flight_ID`) REFERENCES `FLIGHT`(`ID`) ON UPDATE CASCADE
+);

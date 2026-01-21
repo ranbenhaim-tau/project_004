@@ -697,7 +697,7 @@ def checkout():
                 (member_first, member_last, member_email)
             )
             # Keep history of phones (do not delete older ones)
-            execute("INSERT IGNORE INTO PHONE_NUMBER_MEMBER(Email, Phone_number) VALUES(%s,%s)", (member_email, member_phone))
+            execute("INSERT OR IGNORE INTO PHONE_NUMBER_MEMBER(Email, Phone_number) VALUES(%s,%s)", (member_email, member_phone))
 
             guest_email = None
 
@@ -740,7 +740,7 @@ def checkout():
                 )
 
             # Keep history of phones (do not delete older ones)
-            execute("INSERT IGNORE INTO PHONE_NUMBER_GUEST(Email, Phone_number) VALUES(%s,%s)", (guest_email, guest_phone))
+            execute("INSERT OR IGNORE INTO PHONE_NUMBER_GUEST(Email, Phone_number) VALUES(%s,%s)", (guest_email, guest_phone))
 
             member_email = None
 
