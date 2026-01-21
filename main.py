@@ -1489,8 +1489,8 @@ def manager_add_flight_step2():
 
     # Long flights require long-haul certification (Training=TRUE) for ALL assigned crew.
     if nf["ftype"] == "Long":
-        pilots = query_all("SELECT * FROM AIRCREW WHERE Type='Pilot' AND Training=TRUE ORDER BY ID")
-        attendants = query_all("SELECT * FROM AIRCREW WHERE Type='Flight attendant' AND Training=TRUE ORDER BY ID")
+        pilots = query_all("SELECT * FROM AIRCREW WHERE Type='Pilot' AND Training=1 ORDER BY ID")
+        attendants = query_all("SELECT * FROM AIRCREW WHERE Type='Flight attendant' AND Training=1 ORDER BY ID")
     else:
         pilots = query_all("SELECT * FROM AIRCREW WHERE Type='Pilot' ORDER BY Training DESC, ID")
         attendants = query_all("SELECT * FROM AIRCREW WHERE Type='Flight attendant' ORDER BY Training DESC, ID")
@@ -1746,7 +1746,7 @@ def manager_aircrew_add():
             return redirect(url_for("manager_aircrew_add"))
 
         try:
-            execute("""INSERT INTO AIRCREW(ID, City, Street, House_Number, Date_of_employment, First_name, Last_name, Phone_number, Type, Training)
+            execute("""INSERT INTO AIRCREW(ID, City, Street, House_Number, Start_date_of_employment, First_name, Last_name, Phone_number, Type, Training)
                       VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                     (cid_i, city, street, house_i, start, first, last, phone, typ, training))
             flash("Crew member added.", "success")
