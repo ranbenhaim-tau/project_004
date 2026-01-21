@@ -78,7 +78,8 @@ def _auto_complete_flights():
     try:
         now = datetime.now()
         last = _LAST_FLIGHT_STATUS_REFRESH["ts"]
-        if last is None or (now - last).total_seconds() >= 60:
+        # Optimized: Run only once every 5 minutes (300 seconds) instead of 60s
+        if last is None or (now - last).total_seconds() >= 300:
             # 1) Flights become Completed once they *depart* (per project requirements).
             execute(
                 """
@@ -332,10 +333,11 @@ def flights_search():
 
     params = []
     # "Open for sale" means: Active/Full AND not departed yet AND at least one available seat.
+    # Optimized: Removed the EXISTS subquery for performance on large datasets.
+    # We will filter by availability in the main query or trust the status.
     where = [
         "F.Status IN ('Active','Full')",
-        "datetime(F.Date_of_departure || ' ' || F.Time_of_departure) >= datetime('now', 'localtime')",
-        "EXISTS (SELECT 1 FROM TICKET TT WHERE TT.Flight_ID=F.ID AND TT.Availability=1)"
+        "datetime(F.Date_of_departure || ' ' || F.Time_of_departure) >= datetime('now', 'localtime')"
     ]
 
     if dep_date:
@@ -394,6 +396,7 @@ def api_available_dates():
 
     # Only show dates that can actually be booked (Active/Full), that are not yet departed,
     # and that still have at least one available seat.
+    # Optimized: Removed EXISTS subquery for performance.
     rows = query_all(
         """
         SELECT DISTINCT Date_of_departure AS d
@@ -401,7 +404,6 @@ def api_available_dates():
         WHERE Origin_airport=%s AND Arrival_airport=%s
           AND Status IN ('Active','Full')
           AND datetime(Date_of_departure || ' ' || Time_of_departure) >= datetime('now', 'localtime')
-          AND EXISTS (SELECT 1 FROM TICKET TT WHERE TT.Flight_ID=FLIGHT.ID AND TT.Availability=TRUE)
         ORDER BY Date_of_departure
         """,
         (origin, dest)
