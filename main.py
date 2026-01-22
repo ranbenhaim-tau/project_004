@@ -1100,13 +1100,20 @@ def cancel_order(order_id):
 
         # Release tickets: a ticket becomes available if it has NO ACTIVE link.
         for k in keys:
+            # Access Row object fields - Row objects support dictionary access
+            airplane_id = k['Airplane_ID']
+            flight_id = k['Flight_ID']
+            seat_row = k['SEAT_Row_num']
+            seat_col = k['SEAT_Column_number']
+            class_type = k['CLASS_Type']
+            
             cur.execute(
                 """SELECT Availability
                    FROM TICKET
                    WHERE Airplane_ID=? AND Flight_ID=? AND SEAT_Row_num=? AND SEAT_Column_number=? AND CLASS_Type=?""",
-                (k['Airplane_ID'], k['Flight_ID'], k['SEAT_Row_num'], k['SEAT_Column_number'], k['CLASS_Type']),
+                (airplane_id, flight_id, seat_row, seat_col, class_type),
             )
-            _ = cur.fetchone()  # locked
+            _ = cur.fetchone()
 
             cur.execute(
                 """SELECT 1
@@ -1115,7 +1122,7 @@ def cancel_order(order_id):
                    WHERE TO2.Airplane_ID=? AND TO2.Flight_ID=? AND TO2.SEAT_Row_num=? AND TO2.SEAT_Column_number=? AND TO2.CLASS_Type=?
                      AND O2.Status='Active'
                    LIMIT 1""",
-                (k['Airplane_ID'], k['Flight_ID'], k['SEAT_Row_num'], k['SEAT_Column_number'], k['CLASS_Type']),
+                (airplane_id, flight_id, seat_row, seat_col, class_type),
             )
             has_active = cur.fetchone() is not None
 
@@ -1123,13 +1130,18 @@ def cancel_order(order_id):
                 """UPDATE TICKET
                    SET Availability=?
                    WHERE Airplane_ID=? AND Flight_ID=? AND SEAT_Row_num=? AND SEAT_Column_number=? AND CLASS_Type=?""",
-                (0 if has_active else 1, k['Airplane_ID'], k['Flight_ID'], k['SEAT_Row_num'], k['SEAT_Column_number'], k['CLASS_Type']),
+                (0 if has_active else 1, airplane_id, flight_id, seat_row, seat_col, class_type),
             )
 
         conn.commit()
-    except Exception:
+    except Exception as e:
         conn.rollback()
-        flash('This order is no longer active or could not be cancelled.', 'warning')
+        # Show actual error for debugging - this will help identify the real issue
+        import traceback
+        error_msg = str(e)
+        error_trace = traceback.format_exc()
+        # In production, log traceback instead of showing to user
+        flash(f'Failed to cancel order: {error_msg}. Please try again or contact support.', 'danger')
         return redirect(url_for('order_details', order_id=order_id, email=guest_email))
     finally:
         try:
