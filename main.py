@@ -977,13 +977,22 @@ def order_details(order_id):
     reason=None
     order_status = o.get("Status", "")
     if order_status=="Active" and tickets:
-        dep_date = tickets[0]["Date_of_departure"]
-        dep_time = tickets[0]["Time_of_departure"]
-        hrs = hours_until(dep_date, dep_time)
-        if hrs >= 36:
-            can_cancel=True
-        else:
-            reason="Orders can’t be cancelled less than 36 hours before departure."
+        try:
+            dep_date = tickets[0].get("Date_of_departure")
+            dep_time = tickets[0].get("Time_of_departure")
+            # Parse date and time if they are strings
+            if isinstance(dep_date, str):
+                dep_date = parse_date(dep_date)
+            if isinstance(dep_time, str):
+                dep_time = parse_time(dep_time)
+            hrs = hours_until(dep_date, dep_time)
+            if hrs >= 36:
+                can_cancel=True
+            else:
+                reason="Orders can't be cancelled less than 36 hours before departure."
+        except Exception as e:
+            # If we can't calculate hours, don't allow cancellation
+            reason=f"Unable to calculate cancellation eligibility: {str(e)}"
     elif order_status!="Active":
         reason="Order is not active."
 
