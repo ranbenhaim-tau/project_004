@@ -12,15 +12,7 @@ from config import Config
 from db import query_one, query_all, execute, executemany, get_conn
 from utils import parse_date, parse_time, add_minutes_to_dt, hours_until
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-try:
-    import pandas as pd
-    import seaborn as sns
-    HAS_PLOTTING = True
-except ImportError:
-    HAS_PLOTTING = False
+# Chart.js is used for interactive charts (loaded via CDN in templates)
 
 load_dotenv()
 
@@ -1870,14 +1862,6 @@ def manager_aircrew_add():
     return render_template("manager_aircrew_add.html")
 
 # ---------- REPORTS ----------
-def save_plot(fig, filename):
-    outdir = os.path.join(app.root_path, "static", "generated")
-    os.makedirs(outdir, exist_ok=True)
-    path = os.path.join(outdir, filename)
-    fig.savefig(path, bbox_inches="tight")
-    plt.close(fig)
-    return f"generated/{filename}"
-
 def _prepare_chart_data(table_rows):
     """Prepare chart data for JavaScript rendering (Report 4 - Cancellation)."""
     if not table_rows:
