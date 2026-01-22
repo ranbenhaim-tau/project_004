@@ -146,9 +146,14 @@
 {% endif %}
 
 
-{% if chart_path %}
-  <div class="my-3">
-    <img class="img-fluid" src="{{ url_for('static', filename=chart_path) }}" alt="chart">
+{% if report=='4' and chart_data %}
+  <div class="card mb-3">
+    <div class="card-body">
+      <h5 class="card-title mb-3">Monthly Cancellation Rate Trends</h5>
+      <div style="position: relative; height: 400px;">
+        <canvas id="cancellationChart"></canvas>
+      </div>
+    </div>
   </div>
 {% endif %}
 
@@ -179,3 +184,85 @@
 </div>
 
 {% endblock %}
+
+{% if report=='4' and chart_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  (function() {
+    const chartData = {{ chart_data|tojson }};
+    if (!chartData || !chartData.labels || !chartData.data) return;
+    
+    const ctx = document.getElementById('cancellationChart');
+    if (!ctx) return;
+    
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartData.labels,
+        datasets: [{
+          label: 'Cancellation Rate (%)',
+          data: chartData.data,
+          borderColor: '#e74c3c',
+          backgroundColor: 'rgba(231, 76, 60, 0.1)',
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          pointBackgroundColor: '#e74c3c',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: {
+            display: false
+          },
+          legend: {
+            display: true,
+            position: 'top'
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            callbacks: {
+              label: function(context) {
+                return 'Cancellation Rate: ' + context.parsed.y.toFixed(2) + '%';
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: Math.max(...chartData.data) + 5,
+            title: {
+              display: true,
+              text: 'Cancellation Rate (%)'
+            },
+            ticks: {
+              callback: function(value) {
+                return value + '%';
+              }
+            }
+          },
+          x: {
+            title: {
+              display: true,
+              text: 'Month'
+            }
+          }
+        },
+        elements: {
+          point: {
+            hoverBackgroundColor: '#c0392b'
+          }
+        }
+      }
+    });
+  })();
+</script>
+{% endif %}
