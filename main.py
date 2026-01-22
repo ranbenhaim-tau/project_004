@@ -1862,7 +1862,67 @@ def manager_aircrew_add():
     return render_template("manager_aircrew_add.html")
 
 # ---------- REPORTS ----------
-def _prepare_chart_data(table_rows):
+def _prepare_revenue_chart_data(table_rows):
+    """Prepare chart data for JavaScript rendering (Report 2 - Revenue)."""
+    if not table_rows:
+        return None
+    
+    try:
+        # Group data by Plane_Type and CLASS_Type
+        plane_types = {}
+        class_types = set()
+        
+        for row in table_rows:
+            # Access sqlite3.Row with dictionary-style access
+            manufacturer = str(row['Manufacturer']).strip()
+            size = str(row['Size']).strip()
+            class_type = str(row['CLASS_Type']).strip()
+            total_income = float(row['Total_Income'] or 0)
+            
+            plane_key = f"{manufacturer} ({size})"
+            class_types.add(class_type)
+            
+            if plane_key not in plane_types:
+                plane_types[plane_key] = {}
+            plane_types[plane_key][class_type] = total_income
+        
+        # Sort plane types
+        sorted_planes = sorted(plane_types.keys())
+        sorted_classes = sorted(class_types)
+        
+        # Prepare datasets for each class type
+        datasets = []
+        colors = {
+            'Regular': 'rgba(75, 192, 192, 1)',
+            'First': 'rgba(255, 99, 132, 1)',
+            'Business': 'rgba(54, 162, 235, 1)'
+        }
+        color_default = 'rgba(153, 102, 255, 1)'
+        
+        for class_type in sorted_classes:
+            data = []
+            for plane in sorted_planes:
+                data.append(plane_types[plane].get(class_type, 0))
+            
+            datasets.append({
+                'label': class_type,
+                'data': data,
+                'backgroundColor': colors.get(class_type, color_default),
+                'borderColor': colors.get(class_type, color_default),
+                'borderWidth': 1
+            })
+        
+        return {
+            "labels": sorted_planes,
+            "datasets": datasets
+        }
+    except Exception as e:
+        print(f"Error preparing revenue chart data: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+def _prepare_cancellation_chart_data(table_rows):
     """Prepare chart data for JavaScript rendering (Report 4 - Cancellation)."""
     if not table_rows:
         return None
@@ -1871,20 +1931,26 @@ def _prepare_chart_data(table_rows):
         months = []
         rates = []
         for row in table_rows:
-            month = str(row.get("Month", "")).strip()
+            # Access sqlite3.Row with dictionary-style access
+            month = str(row['Month']).strip()
             try:
-                rate = float(row.get("Cancellation_Rate", 0) or 0)
+                rate = float(row['Cancellation_Rate'] or 0)
             except (ValueError, TypeError):
                 rate = 0.0
             months.append(month)
             rates.append(rate)
+        
+        if not months:
+            return None
         
         return {
             "labels": months,
             "data": rates
         }
     except Exception as e:
-        print(f"Error preparing chart data: {e}")
+        print(f"Error preparing cancellation chart data: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 _REPORT_SQL_CACHE = None
@@ -1987,10 +2053,12 @@ def _get_report_data(report: str):
 
     pretty_cols = [_pretty_col_name(c) for c in cols]
     
-    # Prepare chart data for JavaScript rendering (Report 4 - Cancellation)
+    # Prepare chart data for JavaScript rendering
     chart_data = None
-    if rid == 4:
-        chart_data = _prepare_chart_data(table)
+    if rid == 2:
+        chart_data = _prepare_revenue_chart_data(table)
+    elif rid == 4:
+        chart_data = _prepare_cancellation_chart_data(table)
     
     return str(rid), title, cols, pretty_cols, table, chart_data
 

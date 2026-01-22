@@ -146,6 +146,17 @@
 {% endif %}
 
 
+{% if report=='2' and chart_data %}
+  <div class="card mb-3">
+    <div class="card-body">
+      <h5 class="card-title mb-3">Total Revenue by Aircraft Type and Class</h5>
+      <div style="position: relative; height: 400px;">
+        <canvas id="revenueChart"></canvas>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
 {% if report=='4' and chart_data %}
   <div class="card mb-3">
     <div class="card-body">
@@ -185,84 +196,148 @@
 
 {% endblock %}
 
-{% if report=='4' and chart_data %}
+{% if (report=='2' or report=='4') and chart_data %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
   (function() {
     const chartData = {{ chart_data|tojson }};
-    if (!chartData || !chartData.labels || !chartData.data) return;
+    if (!chartData) return;
     
-    const ctx = document.getElementById('cancellationChart');
-    if (!ctx) return;
-    
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: chartData.labels,
-        datasets: [{
-          label: 'Cancellation Rate (%)',
-          data: chartData.data,
-          borderColor: '#e74c3c',
-          backgroundColor: 'rgba(231, 76, 60, 0.1)',
-          borderWidth: 2.5,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 5,
-          pointHoverRadius: 7,
-          pointBackgroundColor: '#e74c3c',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          title: {
-            display: false
-          },
-          legend: {
-            display: true,
-            position: 'top'
-          },
-          tooltip: {
-            mode: 'index',
-            intersect: false,
-            callbacks: {
-              label: function(context) {
-                return 'Cancellation Rate: ' + context.parsed.y.toFixed(2) + '%';
-              }
-            }
-          }
+    {% if report=='2' %}
+    // Revenue Chart (Bar Chart)
+    const revenueCtx = document.getElementById('revenueChart');
+    if (revenueCtx && chartData.labels && chartData.datasets) {
+      new Chart(revenueCtx, {
+        type: 'bar',
+        data: {
+          labels: chartData.labels,
+          datasets: chartData.datasets
         },
-        scales: {
-          y: {
-            beginAtZero: true,
-            max: Math.max(...chartData.data) + 5,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
             title: {
-              display: true,
-              text: 'Cancellation Rate (%)'
+              display: false
             },
-            ticks: {
-              callback: function(value) {
-                return value + '%';
+            legend: {
+              display: true,
+              position: 'top'
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              callbacks: {
+                label: function(context) {
+                  return context.dataset.label + ': $' + context.parsed.y.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                }
               }
             }
           },
-          x: {
-            title: {
-              display: true,
-              text: 'Month'
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Total Income ($)'
+              },
+              ticks: {
+                callback: function(value) {
+                  return '$' + value.toLocaleString('en-US');
+                }
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'Aircraft (Manufacturer & Size)'
+              },
+              ticks: {
+                maxRotation: 45,
+                minRotation: 45
+              }
             }
-          }
-        },
-        elements: {
-          point: {
-            hoverBackgroundColor: '#c0392b'
           }
         }
-      }
-    });
+      });
+    }
+    {% endif %}
+    
+    {% if report=='4' %}
+    // Cancellation Chart (Line Chart)
+    const cancelCtx = document.getElementById('cancellationChart');
+    if (cancelCtx && chartData.labels && chartData.data) {
+      const maxRate = Math.max(...chartData.data);
+      new Chart(cancelCtx, {
+        type: 'line',
+        data: {
+          labels: chartData.labels,
+          datasets: [{
+            label: 'Cancellation Rate (%)',
+            data: chartData.data,
+            borderColor: '#e74c3c',
+            backgroundColor: 'rgba(231, 76, 60, 0.1)',
+            borderWidth: 2.5,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointBackgroundColor: '#e74c3c',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: {
+              display: false
+            },
+            legend: {
+              display: true,
+              position: 'top'
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              callbacks: {
+                label: function(context) {
+                  return 'Cancellation Rate: ' + context.parsed.y.toFixed(2) + '%';
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: maxRate + 5,
+              title: {
+                display: true,
+                text: 'Cancellation Rate (%)'
+              },
+              ticks: {
+                callback: function(value) {
+                  return value + '%';
+                }
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'Month'
+              }
+            }
+          },
+          elements: {
+            point: {
+              hoverBackgroundColor: '#c0392b'
+            }
+          }
+        }
+      });
+    }
+    {% endif %}
   })();
 </script>
 {% endif %}
