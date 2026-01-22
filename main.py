@@ -109,6 +109,15 @@ def _auto_complete_flights():
 
 
 # ---------- JINJA HELPERS ----------
+@app.template_filter('currency')
+def currency_filter(value):
+    """Format number as currency with commas and 2 decimal places."""
+    try:
+        num = float(value)
+        return f"${num:,.2f}"
+    except (ValueError, TypeError):
+        return str(value)
+
 @app.template_filter('hm')
 def hm(value):
     """Format time-like values as HH:MM (drop seconds)."""

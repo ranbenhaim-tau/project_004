@@ -128,19 +128,19 @@
     <div class="report-circle bg-success-subtle border border-success">
       <div class="label">Top manufacturer (Regular)</div>
       <div class="value">{{ top_manufacturers.regular.Manufacturer }}</div>
-      <div class="small text-muted">${{ '%.2f'|format(top_manufacturers.regular.Total_Income) }}</div>
+      <div class="small text-muted">{{ top_manufacturers.regular.Total_Income|currency }}</div>
     </div>
 
     <div class="report-circle bg-success-subtle border border-success">
       <div class="label">Top manufacturer (First)</div>
       <div class="value">{{ top_manufacturers.first.Manufacturer }}</div>
-      <div class="small text-muted">${{ '%.2f'|format(top_manufacturers.first.Total_Income) }}</div>
+      <div class="small text-muted">{{ top_manufacturers.first.Total_Income|currency }}</div>
     </div>
 
     <div class="report-circle bg-success-subtle border border-success">
       <div class="label">Top manufacturer (Overall)</div>
       <div class="value">{{ top_manufacturers.overall.Manufacturer }}</div>
-      <div class="small text-muted">${{ '%.2f'|format(top_manufacturers.overall.Total_Income) }}</div>
+      <div class="small text-muted">{{ top_manufacturers.overall.Total_Income|currency }}</div>
     </div>
   </div>
 {% endif %}
@@ -377,7 +377,13 @@
           {% for r in table %}
             <tr>
               {% for c in cols %}
-                <td>{{ r[c] }}</td>
+                <td>
+                  {% if report=='2' and c == 'Total_Income' %}
+                    {{ r[c]|currency }}
+                  {% else %}
+                    {{ r[c] }}
+                  {% endif %}
+                </td>
               {% endfor %}
             </tr>
           {% endfor %}
