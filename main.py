@@ -1068,21 +1068,24 @@ def cancel_order(order_id):
         o_locked = cur.fetchone()
         if not o_locked:
             raise Exception('Order not found')
-        # Access Row object - use dictionary-style access, not .get()
-        order_status = o_locked['Status'] if 'Status' in o_locked.keys() else None
+        # Access Row object - sqlite3.Row supports dictionary-style access
+        try:
+            order_status = o_locked['Status']
+        except (KeyError, TypeError):
+            raise Exception('Order status not found')
         if order_status != 'Active':
             raise Exception('Order is no longer active')
 
         # Use the stored cancellation fee (5% of the original total at creation time).
         try:
-            cancellation_fee = o_locked['Cancellation_fee'] if 'Cancellation_fee' in o_locked.keys() else 0
+            cancellation_fee = o_locked['Cancellation_fee']
             fee = float(cancellation_fee or 0)
         except (KeyError, ValueError, TypeError):
             fee = 0.0
         # Fallback (should not happen): if fee is missing/zero but total is positive, compute 5%.
         if fee <= 0:
             try:
-                total_price = o_locked['Total_price'] if 'Total_price' in o_locked.keys() else 0
+                total_price = o_locked['Total_price']
                 fee = round(float(total_price or 0) * 0.05, 2)
             except (KeyError, ValueError, TypeError):
                 fee = 0.0
