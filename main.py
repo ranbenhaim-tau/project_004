@@ -1063,24 +1063,28 @@ def cancel_order(order_id):
     try:
         cur = conn.cursor()
 
-        # Lock the order row.
+        # Get the order row to verify status and get cancellation fee
         cur.execute("SELECT * FROM `ORDER` WHERE ID=?", (order_id,))
         o_locked = cur.fetchone()
         if not o_locked:
             raise Exception('Order not found')
-        if o_locked.get('Status') != 'Active':
+        # Access Row object - use dictionary-style access, not .get()
+        order_status = o_locked['Status'] if 'Status' in o_locked.keys() else None
+        if order_status != 'Active':
             raise Exception('Order is no longer active')
 
         # Use the stored cancellation fee (5% of the original total at creation time).
         try:
-            fee = float(o_locked.get('Cancellation_fee', 0) or 0)
-        except Exception:
+            cancellation_fee = o_locked['Cancellation_fee'] if 'Cancellation_fee' in o_locked.keys() else 0
+            fee = float(cancellation_fee or 0)
+        except (KeyError, ValueError, TypeError):
             fee = 0.0
         # Fallback (should not happen): if fee is missing/zero but total is positive, compute 5%.
         if fee <= 0:
             try:
-                fee = round(float(o_locked.get('Total_price', 0) or 0) * 0.05, 2)
-            except Exception:
+                total_price = o_locked['Total_price'] if 'Total_price' in o_locked.keys() else 0
+                fee = round(float(total_price or 0) * 0.05, 2)
+            except (KeyError, ValueError, TypeError):
                 fee = 0.0
 
         # Update order status and final price. (Do NOT change Cancellation_fee here.)
