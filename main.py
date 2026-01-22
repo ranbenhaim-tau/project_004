@@ -810,7 +810,12 @@ def checkout():
                 trow = cur.fetchone()
                 if not trow:
                     raise Exception('Seat not found')
-                if trow.get('Availability') != 1:
+                # Access Row object - use dictionary-style access, not .get()
+                try:
+                    availability = trow['Availability']
+                    if availability is None or int(availability) != 1:
+                        raise Exception('Seat not available')
+                except (KeyError, ValueError, TypeError):
                     raise Exception('Seat not available')
 
                 airplane_id = trow['Airplane_ID']
@@ -845,9 +850,11 @@ def checkout():
                 )
 
             conn.commit()
-        except Exception:
+        except Exception as e:
             conn.rollback()
-            flash('One or more selected seats are no longer available. Please choose again.', 'danger')
+            # Show actual error for debugging
+            error_msg = str(e)
+            flash(f'Failed to complete order: {error_msg}. Please try again.', 'danger')
             return redirect(url_for('flight_seats', flight_id=flight_id))
         finally:
             try:
