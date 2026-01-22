@@ -784,7 +784,7 @@ def checkout():
         # All seat-availability constraints are enforced here in code (no triggers).
         conn = get_conn()
         try:
-            cur = conn.cursor(dictionary=True)
+            cur = conn.cursor()
 
             # Create the order first (ID is generated in code).
             cur.execute(
@@ -1041,7 +1041,7 @@ def cancel_order(order_id):
     # Perform the cancellation and ticket release atomically (no triggers).
     conn = get_conn()
     try:
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor()
 
         # Lock the order row.
         cur.execute("SELECT * FROM `ORDER` WHERE ID=? FOR UPDATE", (order_id,))
@@ -1694,7 +1694,7 @@ def manager_cancel_flight(flight_id):
     # set flight canceled + update related orders atomically (no triggers)
     conn = get_conn()
     try:
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor()
 
         # Lock flight row
         cur.execute("SELECT Status FROM FLIGHT WHERE ID=? FOR UPDATE", (flight_id,))
