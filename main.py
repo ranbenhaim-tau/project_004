@@ -798,8 +798,7 @@ def checkout():
                 cur.execute(
                     """SELECT Airplane_ID, Availability
                        FROM TICKET
-                       WHERE Flight_ID=? AND CLASS_Type=? AND SEAT_Row_num=? AND SEAT_Column_number=?
-                       FOR UPDATE""",
+                       WHERE Flight_ID=? AND CLASS_Type=? AND SEAT_Row_num=? AND SEAT_Column_number=?""",
                     (flight_id, cls, row, col),
                 )
                 trow = cur.fetchone()
@@ -818,8 +817,7 @@ def checkout():
                        WHERE TO1.Airplane_ID=? AND TO1.Flight_ID=?
                          AND TO1.SEAT_Row_num=? AND TO1.SEAT_Column_number=? AND TO1.CLASS_Type=?
                          AND O1.Status='Active'
-                       LIMIT 1
-                       FOR UPDATE""",
+                       LIMIT 1""",
                     (airplane_id, flight_id, row, col, cls),
                 )
                 if cur.fetchone():
@@ -1044,7 +1042,7 @@ def cancel_order(order_id):
         cur = conn.cursor()
 
         # Lock the order row.
-        cur.execute("SELECT * FROM `ORDER` WHERE ID=? FOR UPDATE", (order_id,))
+        cur.execute("SELECT * FROM `ORDER` WHERE ID=?", (order_id,))
         o_locked = cur.fetchone()
         if not o_locked:
             raise Exception('Order not found')
@@ -1083,8 +1081,7 @@ def cancel_order(order_id):
             cur.execute(
                 """SELECT Availability
                    FROM TICKET
-                   WHERE Airplane_ID=? AND Flight_ID=? AND SEAT_Row_num=? AND SEAT_Column_number=? AND CLASS_Type=?
-                   FOR UPDATE""",
+                   WHERE Airplane_ID=? AND Flight_ID=? AND SEAT_Row_num=? AND SEAT_Column_number=? AND CLASS_Type=?""",
                 (k['Airplane_ID'], k['Flight_ID'], k['SEAT_Row_num'], k['SEAT_Column_number'], k['CLASS_Type']),
             )
             _ = cur.fetchone()  # locked
@@ -1095,8 +1092,7 @@ def cancel_order(order_id):
                    JOIN `ORDER` O2 ON O2.ID = TO2.Order_ID
                    WHERE TO2.Airplane_ID=? AND TO2.Flight_ID=? AND TO2.SEAT_Row_num=? AND TO2.SEAT_Column_number=? AND TO2.CLASS_Type=?
                      AND O2.Status='Active'
-                   LIMIT 1
-                   FOR UPDATE""",
+                   LIMIT 1""",
                 (k['Airplane_ID'], k['Flight_ID'], k['SEAT_Row_num'], k['SEAT_Column_number'], k['CLASS_Type']),
             )
             has_active = cur.fetchone() is not None
@@ -1696,8 +1692,8 @@ def manager_cancel_flight(flight_id):
     try:
         cur = conn.cursor()
 
-        # Lock flight row
-        cur.execute("SELECT Status FROM FLIGHT WHERE ID=? FOR UPDATE", (flight_id,))
+        # Get flight status
+        cur.execute("SELECT Status FROM FLIGHT WHERE ID=?", (flight_id,))
         f_locked = cur.fetchone()
         if not f_locked:
             raise Exception('Flight not found')
@@ -1709,8 +1705,7 @@ def manager_cancel_flight(flight_id):
             """SELECT DISTINCT O.ID
                FROM `ORDER` O
                JOIN TICKET_ORDER to1 ON to1.Order_ID=O.ID
-               WHERE to1.Flight_ID=? AND O.Status='Active'
-               FOR UPDATE""",
+               WHERE to1.Flight_ID=? AND O.Status='Active'""",
             (flight_id,),
         )
         orders = cur.fetchall() or []
