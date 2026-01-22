@@ -655,17 +655,23 @@ def checkout():
         return redirect(url_for("flights_search"))
 
     # fetch tickets and validate availability (server-side)
-    placeholders = ",".join(["(?,?,?)"] * len(parsed))
-    params = []
+    # SQLite doesn't support tuple IN syntax well, so we use OR conditions instead
+    if not parsed:
+        flash("Invalid seat selection.", "danger")
+        return redirect(url_for("flights_search"))
+    
+    or_conditions = []
+    params = [flight_id]
     for cls, row, col in parsed:
-        params += [cls, row, col]
-
+        or_conditions.append("(CLASS_Type=? AND SEAT_Row_num=? AND SEAT_Column_number=?)")
+        params.extend([cls, row, col])
+    
+    where_clause = " OR ".join(or_conditions)
     tickets = query_all(f"""
         SELECT CLASS_Type, SEAT_Row_num, SEAT_Column_number, Price, Availability
         FROM TICKET
-        WHERE Flight_ID=?
-          AND (CLASS_Type, SEAT_Row_num, SEAT_Column_number) IN ({placeholders})
-    """, tuple([flight_id] + params))
+        WHERE Flight_ID=? AND ({where_clause})
+    """, tuple(params))
 
     if len(tickets) != len(parsed):
         flash("One or more selected seats are no longer available. Please choose again.", "danger")
