@@ -155,6 +155,96 @@
       </div>
     </div>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    (function() {
+      function initRevenueChart() {
+        if (typeof Chart === 'undefined') {
+          console.error('Chart.js not loaded');
+          setTimeout(initRevenueChart, 100);
+          return;
+        }
+        
+        const chartData = {{ chart_data|tojson }};
+        console.log('Revenue chart data:', chartData);
+        
+        if (!chartData || !chartData.labels || !chartData.datasets) {
+          console.error('Revenue chart data missing or invalid:', chartData);
+          return;
+        }
+        
+        const revenueCtx = document.getElementById('revenueChart');
+        if (!revenueCtx) {
+          console.error('Revenue chart canvas not found');
+          return;
+        }
+        
+        try {
+          new Chart(revenueCtx, {
+          type: 'bar',
+          data: {
+            labels: chartData.labels,
+            datasets: chartData.datasets
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              title: {
+                display: false
+              },
+              legend: {
+                display: true,
+                position: 'top'
+              },
+              tooltip: {
+                mode: 'index',
+                intersect: false,
+                callbacks: {
+                  label: function(context) {
+                    return context.dataset.label + ': $' + context.parsed.y.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                  }
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: {
+                  display: true,
+                  text: 'Total Income ($)'
+                },
+                ticks: {
+                  callback: function(value) {
+                    return '$' + value.toLocaleString('en-US');
+                  }
+                }
+              },
+              x: {
+                title: {
+                  display: true,
+                  text: 'Aircraft (Manufacturer & Size)'
+                },
+                ticks: {
+                  maxRotation: 45,
+                  minRotation: 45
+                }
+              }
+            }
+          }
+        });
+        } catch (error) {
+          console.error('Error creating revenue chart:', error);
+        }
+      }
+      
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initRevenueChart);
+      } else {
+        initRevenueChart();
+      }
+    })();
+  </script>
 {% endif %}
 
 {% if report=='4' and chart_data %}
@@ -166,6 +256,112 @@
       </div>
     </div>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    (function() {
+      function initCancellationChart() {
+        if (typeof Chart === 'undefined') {
+          console.error('Chart.js not loaded');
+          setTimeout(initCancellationChart, 100);
+          return;
+        }
+        
+        const chartData = {{ chart_data|tojson }};
+        console.log('Cancellation chart data:', chartData);
+        
+        if (!chartData || !chartData.labels || !chartData.data) {
+          console.error('Cancellation chart data missing or invalid:', chartData);
+          return;
+        }
+        
+        const cancelCtx = document.getElementById('cancellationChart');
+        if (!cancelCtx) {
+          console.error('Cancellation chart canvas not found');
+          return;
+        }
+        
+        try {
+          const maxRate = Math.max(...chartData.data);
+          new Chart(cancelCtx, {
+          type: 'line',
+          data: {
+            labels: chartData.labels,
+            datasets: [{
+              label: 'Cancellation Rate (%)',
+              data: chartData.data,
+              borderColor: '#e74c3c',
+              backgroundColor: 'rgba(231, 76, 60, 0.1)',
+              borderWidth: 2.5,
+              fill: true,
+              tension: 0.4,
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              pointBackgroundColor: '#e74c3c',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              title: {
+                display: false
+              },
+              legend: {
+                display: true,
+                position: 'top'
+              },
+              tooltip: {
+                mode: 'index',
+                intersect: false,
+                callbacks: {
+                  label: function(context) {
+                    return 'Cancellation Rate: ' + context.parsed.y.toFixed(2) + '%';
+                  }
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                max: maxRate + 5,
+                title: {
+                  display: true,
+                  text: 'Cancellation Rate (%)'
+                },
+                ticks: {
+                  callback: function(value) {
+                    return value + '%';
+                  }
+                }
+              },
+              x: {
+                title: {
+                  display: true,
+                  text: 'Month'
+                }
+              }
+            },
+            elements: {
+              point: {
+                hoverBackgroundColor: '#c0392b'
+              }
+            }
+          }
+        });
+        } catch (error) {
+          console.error('Error creating cancellation chart:', error);
+        }
+      }
+      
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initCancellationChart);
+      } else {
+        initCancellationChart();
+      }
+    })();
+  </script>
 {% endif %}
 
 <div class="card">
@@ -195,149 +391,3 @@
 </div>
 
 {% endblock %}
-
-{% if (report=='2' or report=='4') and chart_data %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-  (function() {
-    const chartData = {{ chart_data|tojson }};
-    if (!chartData) return;
-    
-    {% if report=='2' %}
-    // Revenue Chart (Bar Chart)
-    const revenueCtx = document.getElementById('revenueChart');
-    if (revenueCtx && chartData.labels && chartData.datasets) {
-      new Chart(revenueCtx, {
-        type: 'bar',
-        data: {
-          labels: chartData.labels,
-          datasets: chartData.datasets
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            title: {
-              display: false
-            },
-            legend: {
-              display: true,
-              position: 'top'
-            },
-            tooltip: {
-              mode: 'index',
-              intersect: false,
-              callbacks: {
-                label: function(context) {
-                  return context.dataset.label + ': $' + context.parsed.y.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                }
-              }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              title: {
-                display: true,
-                text: 'Total Income ($)'
-              },
-              ticks: {
-                callback: function(value) {
-                  return '$' + value.toLocaleString('en-US');
-                }
-              }
-            },
-            x: {
-              title: {
-                display: true,
-                text: 'Aircraft (Manufacturer & Size)'
-              },
-              ticks: {
-                maxRotation: 45,
-                minRotation: 45
-              }
-            }
-          }
-        }
-      });
-    }
-    {% endif %}
-    
-    {% if report=='4' %}
-    // Cancellation Chart (Line Chart)
-    const cancelCtx = document.getElementById('cancellationChart');
-    if (cancelCtx && chartData.labels && chartData.data) {
-      const maxRate = Math.max(...chartData.data);
-      new Chart(cancelCtx, {
-        type: 'line',
-        data: {
-          labels: chartData.labels,
-          datasets: [{
-            label: 'Cancellation Rate (%)',
-            data: chartData.data,
-            borderColor: '#e74c3c',
-            backgroundColor: 'rgba(231, 76, 60, 0.1)',
-            borderWidth: 2.5,
-            fill: true,
-            tension: 0.4,
-            pointRadius: 5,
-            pointHoverRadius: 7,
-            pointBackgroundColor: '#e74c3c',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            title: {
-              display: false
-            },
-            legend: {
-              display: true,
-              position: 'top'
-            },
-            tooltip: {
-              mode: 'index',
-              intersect: false,
-              callbacks: {
-                label: function(context) {
-                  return 'Cancellation Rate: ' + context.parsed.y.toFixed(2) + '%';
-                }
-              }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              max: maxRate + 5,
-              title: {
-                display: true,
-                text: 'Cancellation Rate (%)'
-              },
-              ticks: {
-                callback: function(value) {
-                  return value + '%';
-                }
-              }
-            },
-            x: {
-              title: {
-                display: true,
-                text: 'Month'
-              }
-            }
-          },
-          elements: {
-            point: {
-              hoverBackgroundColor: '#c0392b'
-            }
-          }
-        }
-      });
-    }
-    {% endif %}
-  })();
-</script>
-{% endif %}
