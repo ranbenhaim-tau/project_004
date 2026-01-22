@@ -1912,10 +1912,12 @@ def _prepare_revenue_chart_data(table_rows):
                 'borderWidth': 1
             })
         
-        return {
+        result = {
             "labels": sorted_planes,
             "datasets": datasets
         }
+        print(f"Revenue chart data prepared: {len(sorted_planes)} labels, {len(datasets)} datasets")
+        return result
     except Exception as e:
         print(f"Error preparing revenue chart data: {e}")
         import traceback
@@ -1941,12 +1943,15 @@ def _prepare_cancellation_chart_data(table_rows):
             rates.append(rate)
         
         if not months:
+            print("Cancellation chart: No months data found")
             return None
         
-        return {
+        result = {
             "labels": months,
             "data": rates
         }
+        print(f"Cancellation chart data prepared: {len(months)} months")
+        return result
     except Exception as e:
         print(f"Error preparing cancellation chart data: {e}")
         import traceback
