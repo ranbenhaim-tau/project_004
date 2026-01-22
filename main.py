@@ -1011,15 +1011,18 @@ def cancel_order(order_id):
 
     # auth: member owns it, or guest provides email
     guest_email = request.form.get("guest_email","").strip()
+    member_email = o.get("MEMBER_Email")
+    order_guest_email = o.get("GUEST_Email")
+    
     if is_logged_in("member"):
-        if o["MEMBER_Email"] != session["user"]:
+        if member_email is None or member_email != session["user"]:
             flash("You are not allowed to cancel this order.", "danger")
             return redirect(url_for("my_orders"))
     elif is_logged_in("manager"):
         flash("Managers cancel orders by cancelling the flight.", "warning")
         return redirect(url_for("manager_dashboard"))
     else:
-        if not guest_email or o["GUEST_Email"] != guest_email:
+        if not guest_email or order_guest_email is None or order_guest_email != guest_email:
             flash("Guest verification failed.", "danger")
             return redirect(url_for("guest_lookup"))
 
@@ -1032,13 +1035,23 @@ def cancel_order(order_id):
         flash("No tickets were found for this order.", "danger")
         return redirect(url_for("order_details", order_id=order_id, email=guest_email))
 
-    dep_date=tickets[0]["Date_of_departure"]
-    dep_time=tickets[0]["Time_of_departure"]
-    if hours_until(dep_date, dep_time) < 36:
-        flash("Orders can’t be cancelled less than 36 hours before departure.", "danger")
+    # Parse date and time before calling hours_until
+    try:
+        dep_date = tickets[0].get("Date_of_departure")
+        dep_time = tickets[0].get("Time_of_departure")
+        if isinstance(dep_date, str):
+            dep_date = parse_date(dep_date)
+        if isinstance(dep_time, str):
+            dep_time = parse_time(dep_time)
+        if hours_until(dep_date, dep_time) < 36:
+            flash("Orders can't be cancelled less than 36 hours before departure.", "danger")
+            return redirect(url_for("order_details", order_id=order_id, email=guest_email))
+    except Exception as e:
+        flash(f"Error calculating cancellation eligibility: {str(e)}. Please try again.", "danger")
         return redirect(url_for("order_details", order_id=order_id, email=guest_email))
 
-    if o["Status"]!="Active":
+    order_status = o.get("Status", "")
+    if order_status != "Active":
         flash("This order is no longer active.", "warning")
         return redirect(url_for("order_details", order_id=order_id, email=guest_email))
 
