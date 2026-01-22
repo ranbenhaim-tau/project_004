@@ -15,6 +15,12 @@ from utils import parse_date, parse_time, add_minutes_to_dt, hours_until
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+try:
+    import pandas as pd
+    import seaborn as sns
+    HAS_PLOTTING = True
+except ImportError:
+    HAS_PLOTTING = False
 
 load_dotenv()
 
@@ -1872,6 +1878,95 @@ def save_plot(fig, filename):
     plt.close(fig)
     return f"generated/{filename}"
 
+def _generate_revenue_plot(table_rows):
+    """Generate revenue plot for Report 2."""
+    if not table_rows or not HAS_PLOTTING:
+        return None
+    
+    try:
+        # Convert table rows to DataFrame
+        df = pd.DataFrame(table_rows)
+        
+        # Create combined column for x-axis
+        df['Plane_Type'] = df['Manufacturer'] + " (" + df['Size'] + ")"
+        
+        # Set style
+        sns.set_theme(style="whitegrid")
+        plt.figure(figsize=(12, 6))
+        
+        # Create bar plot
+        chart = sns.barplot(
+            data=df,
+            x='Plane_Type',
+            y='Total_Income',
+            hue='CLASS_Type',
+            palette='viridis'
+        )
+        
+        plt.title('Total Revenue by Aircraft Type and Class', fontsize=16, fontweight='bold')
+        plt.xlabel('Aircraft (Manufacturer & Size)', fontsize=12)
+        plt.ylabel('Total Income ($)', fontsize=12)
+        plt.legend(title='Class Type')
+        plt.xticks(rotation=45, ha='right')
+        
+        # Add value labels on bars
+        for container in chart.containers:
+            chart.bar_label(container, fmt='%.0f', padding=3)
+        
+        plt.tight_layout()
+        return save_plot(plt.gcf(), 'report2_revenue.png')
+    except Exception as e:
+        print(f"Error generating revenue plot: {e}")
+        return None
+
+def _generate_cancellation_plot(table_rows):
+    """Generate cancellation rate plot for Report 4."""
+    if not table_rows or not HAS_PLOTTING:
+        return None
+    
+    try:
+        # Convert table rows to DataFrame
+        df = pd.DataFrame(table_rows)
+        
+        # Convert Cancellation_Rate to float
+        df['Cancellation_Rate'] = pd.to_numeric(df['Cancellation_Rate'], errors='coerce')
+        
+        # Set style
+        sns.set_theme(style="whitegrid")
+        plt.figure(figsize=(12, 6))
+        
+        # Create line plot
+        sns.lineplot(
+            data=df,
+            x='Month',
+            y='Cancellation_Rate',
+            marker='o',
+            linewidth=2.5,
+            color='#e74c3c'
+        )
+        
+        plt.fill_between(df['Month'], df['Cancellation_Rate'], color='#e74c3c', alpha=0.1)
+        plt.axhline(y=10, color='gray', linestyle='--', label='Threshold (10%)')
+        
+        plt.title('Monthly Cancellation Rate Trends', fontsize=16, fontweight='bold')
+        plt.xlabel('Month', fontsize=12)
+        plt.ylabel('Cancellation Rate (%)', fontsize=12)
+        max_rate = df['Cancellation_Rate'].max()
+        plt.ylim(0, max(max_rate + 5, 25) if not pd.isna(max_rate) else 25)
+        plt.legend()
+        plt.xticks(rotation=45, ha='right')
+        
+        # Add value labels
+        for x, y in zip(df['Month'], df['Cancellation_Rate']):
+            if not pd.isna(y):
+                plt.text(x, y + 0.5, f'{y:.1f}%', ha='center', fontweight='bold', fontsize=9)
+        
+        plt.tight_layout()
+        return save_plot(plt.gcf(), 'report4_cancellation.png')
+    except Exception as e:
+        print(f"Error generating cancellation plot: {e}")
+        return None
+
 _REPORT_SQL_CACHE = None
 _REPORT_TITLE_CACHE = None
 
@@ -1971,6 +2066,13 @@ def _get_report_data(report: str):
         cols = []
 
     pretty_cols = [_pretty_col_name(c) for c in cols]
+    
+    # Generate plots for specific reports
+    if rid == 2:
+        chart_path = _generate_revenue_plot(table)
+    elif rid == 4:
+        chart_path = _generate_cancellation_plot(table)
+    
     return str(rid), title, cols, pretty_cols, table, chart_path
 
 
