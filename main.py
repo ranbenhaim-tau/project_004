@@ -589,7 +589,30 @@ def flight_seats(flight_id):
                 """,
                 (flight_id, cls, r, c)
             )
-            if not row or row.get("Availability") != 1:
+            # Check availability: must exist and be 1 (available), and not linked to active order
+            if not row:
+                flash("One or more selected seats are no longer available. Please choose again.", "danger")
+                return redirect(url_for("flight_seats", flight_id=flight_id))
+            
+            # Convert to int for comparison (SQLite may return as string)
+            availability = row.get("Availability")
+            if availability is None or int(availability) != 1:
+                flash("One or more selected seats are no longer available. Please choose again.", "danger")
+                return redirect(url_for("flight_seats", flight_id=flight_id))
+            
+            # Also check if seat is linked to an active order
+            active_order_check = query_one(
+                """
+                SELECT 1
+                FROM TICKET_ORDER TO1
+                JOIN `ORDER` O1 ON O1.ID = TO1.Order_ID
+                WHERE TO1.Flight_ID=%s AND TO1.CLASS_Type=%s AND TO1.SEAT_Row_num=%s AND TO1.SEAT_Column_number=%s
+                  AND O1.Status='Active'
+                LIMIT 1
+                """,
+                (flight_id, cls, r, c)
+            )
+            if active_order_check:
                 flash("One or more selected seats are no longer available. Please choose again.", "danger")
                 return redirect(url_for("flight_seats", flight_id=flight_id))
 
@@ -632,7 +655,7 @@ def checkout():
         return redirect(url_for("flights_search"))
 
     # fetch tickets and validate availability (server-side)
-    placeholders = ",".join(["(%s,%s,%s)"] * len(parsed))
+    placeholders = ",".join(["(?,?,?)"] * len(parsed))
     params = []
     for cls, row, col in parsed:
         params += [cls, row, col]
@@ -640,13 +663,20 @@ def checkout():
     tickets = query_all(f"""
         SELECT CLASS_Type, SEAT_Row_num, SEAT_Column_number, Price, Availability
         FROM TICKET
-        WHERE Flight_ID=%s
+        WHERE Flight_ID=?
           AND (CLASS_Type, SEAT_Row_num, SEAT_Column_number) IN ({placeholders})
     """, tuple([flight_id] + params))
 
-    if len(tickets) != len(parsed) or any(t.get("Availability") != 1 for t in tickets):
+    if len(tickets) != len(parsed):
         flash("One or more selected seats are no longer available. Please choose again.", "danger")
         return redirect(url_for("flight_seats", flight_id=flight_id))
+    
+    # Check availability: convert to int for comparison
+    for t in tickets:
+        availability = t.get("Availability")
+        if availability is None or int(availability) != 1:
+            flash("One or more selected seats are no longer available. Please choose again.", "danger")
+            return redirect(url_for("flight_seats", flight_id=flight_id))
 
     total = float(sum([t["Price"] for t in tickets]))
 
@@ -903,25 +933,30 @@ def order_details(order_id):
         return redirect(url_for("index"))
 
     # Authorization:
+    member_email = o.get("MEMBER_Email")
+    guest_email = o.get("GUEST_Email")
+    
     if is_logged_in("member"):
-        if o["MEMBER_Email"] != session["user"]:
+        # Member can only view their own orders
+        if member_email is None or member_email != session["user"]:
             flash("You are not authorized to view this order.", "danger")
             return redirect(url_for("my_orders"))
     elif is_logged_in("manager"):
+        # Managers are blocked from customer area (handled above)
         pass
     else:
-        # guest
+        # guest - must provide email for validation
         if not email:
             flash("Please enter the email used for this order.", "warning")
             return redirect(url_for("guest_lookup"))
 
-        # First validate the guest's email against the order.
-        if o["GUEST_Email"] != email:
+        # Validate guest email - handle NULL case
+        if guest_email is None or guest_email != email:
             flash("Email does not match this order. Please enter the correct email.", "danger")
             return redirect(url_for("guest_lookup"))
 
         # If the order exists and the email is correct, provide a clear message when the order is inactive.
-        if o["Status"] != "Active":
+        if o.get("Status") != "Active":
             flash("This order is no longer active.", "warning")
             return redirect(url_for("guest_lookup"))
 
@@ -934,11 +969,16 @@ def order_details(order_id):
         WHERE TO1.Order_ID=%s
         ORDER BY T.Flight_ID, T.CLASS_Type, T.SEAT_Row_num, T.SEAT_Column_number
     """, (order_id,))
+    
+    # Handle empty tickets list gracefully
+    if not tickets:
+        tickets = []
 
     # can cancel? only for active order, all tickets must belong to one flight (as per design), and >=36h
     can_cancel=False
     reason=None
-    if o["Status"]=="Active" and tickets:
+    order_status = o.get("Status", "")
+    if order_status=="Active" and tickets:
         dep_date = tickets[0]["Date_of_departure"]
         dep_time = tickets[0]["Time_of_departure"]
         hrs = hours_until(dep_date, dep_time)
@@ -946,7 +986,7 @@ def order_details(order_id):
             can_cancel=True
         else:
             reason="Orders can’t be cancelled less than 36 hours before departure."
-    elif o["Status"]!="Active":
+    elif order_status!="Active":
         reason="Order is not active."
 
     return render_template("order_details.html", order=o, tickets=tickets, can_cancel=can_cancel, cancel_reason=reason, guest_email=email)
@@ -1634,9 +1674,21 @@ def manager_cancel_flight(flight_id):
         flash("Flight not found.", "danger")
         return redirect(url_for("manager_flights"))
 
-    hrs = hours_until(f["Date_of_departure"], f["Time_of_departure"])
+    # Parse date and time (handle string or date/time objects)
+    try:
+        dep_date = f.get("Date_of_departure")
+        dep_time = f.get("Time_of_departure")
+        if isinstance(dep_date, str):
+            dep_date = parse_date(dep_date)
+        if isinstance(dep_time, str):
+            dep_time = parse_time(dep_time)
+        hrs = hours_until(dep_date, dep_time)
+    except Exception as e:
+        flash(f"Error calculating flight time: {str(e)}. Please try again.", "danger")
+        return redirect(url_for("manager_flights"))
+    
     if hrs < 72:
-        flash("Flights can’t be cancelled less than 72 hours before departure.", "danger")
+        flash("Flights can't be cancelled less than 72 hours before departure.", "danger")
         return redirect(url_for("manager_flights"))
 
     # set flight canceled + update related orders atomically (no triggers)
@@ -1673,9 +1725,11 @@ def manager_cancel_flight(flight_id):
         cur.execute("UPDATE TICKET SET Availability=0 WHERE Flight_ID=?", (flight_id,))
 
         conn.commit()
-    except Exception:
+    except Exception as e:
         conn.rollback()
-        flash('Failed to cancel flight. Please try again.', 'danger')
+        # Log the actual error for debugging (in production, use proper logging)
+        error_msg = str(e)
+        flash(f'Failed to cancel flight: {error_msg}. Please try again.', 'danger')
         return redirect(url_for('manager_flights'))
     finally:
         try:
