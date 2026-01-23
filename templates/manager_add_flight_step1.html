@@ -22,13 +22,15 @@
           <div class="col-md-12">
             <label class="form-label">Route (Origin → Destination)</label>
             <select class="form-select" name="route" id="route" required>
-              <option value="" selected disabled>Select a route</option>
+              <option value="" {% if not form_route %}selected{% endif %} disabled>Select a route</option>
               {% for r in routes %}
                 <option
                   value="{{ r.Origin_airport }}|{{ r.Arrival_airport }}"
                   data-origin="{{ r.Origin_airport }}"
                   data-dest="{{ r.Arrival_airport }}"
                   data-duration="{{ r.Flight_duration }}"
+                  {% set route_value = r.Origin_airport + '|' + r.Arrival_airport %}
+                  {% if form_route and form_route == route_value %}selected{% endif %}
                 >
                   {{ r.Origin_airport }} → {{ r.Arrival_airport }}
                   ({{ (r.Flight_duration // 60) }}h {{ (r.Flight_duration % 60) }}m)
@@ -39,12 +41,12 @@
 
           <div class="col-md-4">
             <label class="form-label">Departure date</label>
-            <input type="date" class="form-control" name="dep_date" id="dep_date" required>
+            <input type="date" class="form-control" name="dep_date" id="dep_date" value="{% if form_dep_date %}{{ form_dep_date }}{% endif %}" required>
           </div>
 
           <div class="col-md-4">
             <label class="form-label">Departure time</label>
-            <input type="time" class="form-control" name="dep_time" required>
+            <input type="time" class="form-control" name="dep_time" value="{% if form_dep_time %}{{ form_dep_time }}{% endif %}" required>
           </div>
 
           <div class="col-md-4">
