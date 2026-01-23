@@ -1586,10 +1586,10 @@ def manager_add_flight_step2():
 
     # Get boarding airport for the new flight
     boarding_airport = nf["origin"]
+    dep_datetime_str = f"{nf['dep_date']} {nf['dep_time']}"
 
     # Find crew members who are at the boarding airport (their last completed flight landed there)
-    # This query finds the most recent completed flight for each crew member and checks if it landed at the boarding airport
-    # We use a subquery to find the most recent completed flight per crew member, then filter by arrival airport
+    # Also include new staff members who have never been on any flight
     available_at_airport = query_all("""
         SELECT DISTINCT AA.Aircrew_ID
         FROM AIRCREW_ASSIGNMENT AA
@@ -1606,6 +1606,16 @@ def manager_add_flight_step2():
     """, (boarding_airport,))
     available_at_airport_set = set([x["Aircrew_ID"] for x in available_at_airport])
 
+    # Find new staff members who have never been on any flight (they can be selected from any airport)
+    all_crew_with_flights = query_all("SELECT DISTINCT Aircrew_ID FROM AIRCREW_ASSIGNMENT")
+    all_crew_with_flights_set = set([x["Aircrew_ID"] for x in all_crew_with_flights])
+    all_crew = query_all("SELECT ID FROM AIRCREW")
+    all_crew_set = set([x["ID"] for x in all_crew])
+    new_staff_set = all_crew_set - all_crew_with_flights_set
+
+    # Combine: staff at airport OR new staff (no flights yet)
+    available_staff_set = available_at_airport_set | new_staff_set
+
     # Long flights require long-haul certification (Training=TRUE) for ALL assigned crew.
     if nf["ftype"] == "Long":
         pilots = query_all("SELECT * FROM AIRCREW WHERE Type='Pilot' AND Training=1 ORDER BY ID")
@@ -1614,9 +1624,9 @@ def manager_add_flight_step2():
         pilots = query_all("SELECT * FROM AIRCREW WHERE Type='Pilot' ORDER BY Training DESC, ID")
         attendants = query_all("SELECT * FROM AIRCREW WHERE Type='Flight attendant' ORDER BY Training DESC, ID")
 
-    # filter busy and filter by airport location
-    pilots=[p for p in pilots if p["ID"] not in busy_set and p["ID"] in available_at_airport_set]
-    attendants=[a for a in attendants if a["ID"] not in busy_set and a["ID"] in available_at_airport_set]
+    # filter busy and filter by airport location (or new staff)
+    pilots=[p for p in pilots if p["ID"] not in busy_set and p["ID"] in available_staff_set]
+    attendants=[a for a in attendants if a["ID"] not in busy_set and a["ID"] in available_staff_set]
 
     # Keep only airplanes that are feasible with the currently-available crew pool.
     def req_counts_for_size(size: str):
@@ -1633,7 +1643,33 @@ def manager_add_flight_step2():
         if not airplanes:
             flash("No suitable aircraft is available at the selected departure date/time.", "danger")
         else:
-            flash("Not enough available crew members at the selected departure date/time.", "danger")
+            # Check if there are future flights that will bring staff to the boarding airport
+            # Find the earliest arrival time at the boarding airport from future flights
+            future_arrivals = query_all("""
+                SELECT F.Arrival_date, F.Arrival_time, COUNT(DISTINCT AA.Aircrew_ID) as crew_count
+                FROM FLIGHT F
+                JOIN AIRCREW_ASSIGNMENT AA ON AA.Flight_ID = F.ID
+                WHERE F.Arrival_airport = %s
+                  AND F.Status IN ('Active', 'Full')
+                  AND datetime(F.Arrival_date || ' ' || F.Arrival_time) > datetime(%s)
+                GROUP BY F.Arrival_date, F.Arrival_time
+                ORDER BY F.Arrival_date, F.Arrival_time
+                LIMIT 1
+            """, (boarding_airport, dep_datetime_str))
+            
+            if future_arrivals and len(future_arrivals) > 0:
+                earliest = future_arrivals[0]
+                suggested_date = earliest["Arrival_date"]
+                suggested_time = earliest["Arrival_time"]
+                crew_count = earliest["crew_count"]
+                flash(f"No available crew members at {boarding_airport} for the selected departure time. "
+                      f"The earliest time when staff will be available at this airport is {suggested_date} at {suggested_time} "
+                      f"(after a flight arrives with {crew_count} crew member(s)). Please consider scheduling the flight after this time.", 
+                      "warning")
+            else:
+                flash("Not enough available crew members at the selected departure date/time. "
+                      f"No future flights are scheduled to arrive at {boarding_airport} with crew members.", 
+                      "danger")
         return redirect(url_for("manager_add_flight_step1"))
 
     airplanes = feasible_airplanes
