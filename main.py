@@ -1584,6 +1584,28 @@ def manager_add_flight_step2():
     """, (nf["dep_date"], nf["dep_time"]))
     busy_set = set([x["Aircrew_ID"] for x in busy_ids])
 
+    # Get boarding airport for the new flight
+    boarding_airport = nf["origin"]
+
+    # Find crew members who are at the boarding airport (their last completed flight landed there)
+    # This query finds the most recent completed flight for each crew member and checks if it landed at the boarding airport
+    # We use a subquery to find the most recent completed flight per crew member, then filter by arrival airport
+    available_at_airport = query_all("""
+        SELECT DISTINCT AA.Aircrew_ID
+        FROM AIRCREW_ASSIGNMENT AA
+        JOIN FLIGHT F ON F.ID = AA.Flight_ID
+        WHERE F.Status = 'Completed'
+          AND F.Arrival_airport = %s
+          AND (F.Arrival_date || ' ' || F.Arrival_time) = (
+            SELECT MAX(F2.Arrival_date || ' ' || F2.Arrival_time)
+            FROM AIRCREW_ASSIGNMENT AA2
+            JOIN FLIGHT F2 ON F2.ID = AA2.Flight_ID
+            WHERE F2.Status = 'Completed'
+              AND AA2.Aircrew_ID = AA.Aircrew_ID
+          )
+    """, (boarding_airport,))
+    available_at_airport_set = set([x["Aircrew_ID"] for x in available_at_airport])
+
     # Long flights require long-haul certification (Training=TRUE) for ALL assigned crew.
     if nf["ftype"] == "Long":
         pilots = query_all("SELECT * FROM AIRCREW WHERE Type='Pilot' AND Training=1 ORDER BY ID")
@@ -1592,9 +1614,9 @@ def manager_add_flight_step2():
         pilots = query_all("SELECT * FROM AIRCREW WHERE Type='Pilot' ORDER BY Training DESC, ID")
         attendants = query_all("SELECT * FROM AIRCREW WHERE Type='Flight attendant' ORDER BY Training DESC, ID")
 
-    # filter busy
-    pilots=[p for p in pilots if p["ID"] not in busy_set]
-    attendants=[a for a in attendants if a["ID"] not in busy_set]
+    # filter busy and filter by airport location
+    pilots=[p for p in pilots if p["ID"] not in busy_set and p["ID"] in available_at_airport_set]
+    attendants=[a for a in attendants if a["ID"] not in busy_set and a["ID"] in available_at_airport_set]
 
     # Keep only airplanes that are feasible with the currently-available crew pool.
     def req_counts_for_size(size: str):
