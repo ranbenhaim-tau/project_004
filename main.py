@@ -1589,7 +1589,8 @@ def manager_add_flight_step2():
     dep_datetime_str = f"{nf['dep_date']} {nf['dep_time']}"
 
     # Find crew members who are at the boarding airport (their last completed flight landed there)
-    # Also include new staff members who have never been on any flight
+    # AND they don't have a next flight scheduled, OR their next flight departs after the requested time
+    # This means they're available at the airport from when they landed until their next departure
     available_at_airport = query_all("""
         SELECT DISTINCT AA.Aircrew_ID
         FROM AIRCREW_ASSIGNMENT AA
@@ -1603,7 +1604,28 @@ def manager_add_flight_step2():
             WHERE F2.Status = 'Completed'
               AND AA2.Aircrew_ID = AA.Aircrew_ID
           )
-    """, (boarding_airport,))
+          AND (
+            -- No future flights scheduled (available from landing time onwards)
+            NOT EXISTS (
+              SELECT 1
+              FROM AIRCREW_ASSIGNMENT AA3
+              JOIN FLIGHT F3 ON F3.ID = AA3.Flight_ID
+              WHERE AA3.Aircrew_ID = AA.Aircrew_ID
+                AND F3.Status IN ('Active', 'Full')
+                AND datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure) > datetime(F.Arrival_date || ' ' || F.Arrival_time)
+            )
+            OR
+            -- Next flight departs after the requested departure time (available until next departure)
+            COALESCE((
+              SELECT MIN(datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure))
+              FROM AIRCREW_ASSIGNMENT AA3
+              JOIN FLIGHT F3 ON F3.ID = AA3.Flight_ID
+              WHERE AA3.Aircrew_ID = AA.Aircrew_ID
+                AND F3.Status IN ('Active', 'Full')
+                AND datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure) > datetime(F.Arrival_date || ' ' || F.Arrival_time)
+            ), '9999-12-31 23:59:59') > datetime(%s)
+          )
+    """, (boarding_airport, dep_datetime_str))
     available_at_airport_set = set([x["Aircrew_ID"] for x in available_at_airport])
 
     # Find new staff members who have never been on any flight (they can be selected from any airport)
