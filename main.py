@@ -1550,7 +1550,21 @@ def manager_add_flight_step1():
         available_airplanes = query_all(f"SELECT A.* FROM AIRPLANE A {where}", tuple(params))
         
         # Check staff availability at origin airport
-        available_staff = query_all("""
+        # First, get all staff who are not busy at the requested time
+        busy_staff = query_all("""
+            SELECT DISTINCT AA.Aircrew_ID
+            FROM AIRCREW_ASSIGNMENT AA
+            JOIN FLIGHT F ON F.ID = AA.Flight_ID
+            WHERE F.Date_of_departure = %s AND F.Time_of_departure = %s
+        """, (dep_date, dep_time))
+        busy_staff_set = set([x["Aircrew_ID"] for x in busy_staff])
+        
+        # Get all staff (we'll filter by availability)
+        all_crew = query_all("SELECT ID FROM AIRCREW")
+        all_crew_set = set([x["ID"] for x in all_crew])
+        
+        # Find staff at origin airport (last completed flight landed there, or new staff)
+        staff_at_airport = query_all("""
             SELECT DISTINCT AA.Aircrew_ID
             FROM AIRCREW_ASSIGNMENT AA
             JOIN FLIGHT F ON F.ID = AA.Flight_ID
@@ -1561,32 +1575,22 @@ def manager_add_flight_step1():
                 SELECT MAX(F2.Arrival_date || ' ' || F2.Arrival_time)
                 FROM AIRCREW_ASSIGNMENT AA2
                 JOIN FLIGHT F2 ON F2.ID = AA2.Flight_ID
-                WHERE F2.Status = 'Completed'
-                  AND AA2.Aircrew_ID = AA.Aircrew_ID
+                WHERE F2.Status = 'Completed' AND AA2.Aircrew_ID = AA.Aircrew_ID
               )
               AND (
                 NOT EXISTS (
-                  SELECT 1
-                  FROM AIRCREW_ASSIGNMENT AA3
+                  SELECT 1 FROM AIRCREW_ASSIGNMENT AA3
                   JOIN FLIGHT F3 ON F3.ID = AA3.Flight_ID
                   WHERE AA3.Aircrew_ID = AA.Aircrew_ID
                     AND F3.Status IN ('Active', 'Full')
                     AND datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure) > datetime(F.Arrival_date || ' ' || F.Arrival_time)
+                    AND datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure) <= datetime(%s)
                 )
-                OR
-                COALESCE((
-                  SELECT MIN(datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure))
-                  FROM AIRCREW_ASSIGNMENT AA3
-                  JOIN FLIGHT F3 ON F3.ID = AA3.Flight_ID
-                  WHERE AA3.Aircrew_ID = AA.Aircrew_ID
-                    AND F3.Status IN ('Active', 'Full')
-                    AND datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure) > datetime(F.Arrival_date || ' ' || F.Arrival_time)
-                ), '9999-12-31 23:59:59') > datetime(%s)
               )
         """, (origin, dep_datetime_str, dep_datetime_str))
-        available_staff_set = set([x["Aircrew_ID"] for x in available_staff])
+        staff_at_airport_set = set([x["Aircrew_ID"] for x in staff_at_airport])
         
-        # Include staff from future flights arriving before requested time
+        # Include staff from future flights that will arrive before requested time
         future_arrivals_staff = query_all("""
             SELECT DISTINCT AA.Aircrew_ID
             FROM AIRCREW_ASSIGNMENT AA
@@ -1594,36 +1598,22 @@ def manager_add_flight_step1():
             WHERE F.Arrival_airport = %s
               AND F.Status IN ('Active', 'Full')
               AND datetime(F.Arrival_date || ' ' || F.Arrival_time) <= datetime(%s)
-              AND (
-                NOT EXISTS (
-                  SELECT 1
-                  FROM AIRCREW_ASSIGNMENT AA3
-                  JOIN FLIGHT F3 ON F3.ID = AA3.Flight_ID
-                  WHERE AA3.Aircrew_ID = AA.Aircrew_ID
-                    AND F3.Status IN ('Active', 'Full')
-                    AND datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure) > datetime(F.Arrival_date || ' ' || F.Arrival_time)
-                    AND datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure) <= datetime(%s)
-                )
-                OR
-                COALESCE((
-                  SELECT MIN(datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure))
-                  FROM AIRCREW_ASSIGNMENT AA3
-                  JOIN FLIGHT F3 ON F3.ID = AA3.Flight_ID
-                  WHERE AA3.Aircrew_ID = AA.Aircrew_ID
-                    AND F3.Status IN ('Active', 'Full')
-                    AND datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure) > datetime(F.Arrival_date || ' ' || F.Arrival_time)
-                ), '9999-12-31 23:59:59') > datetime(%s)
+              AND NOT EXISTS (
+                SELECT 1 FROM AIRCREW_ASSIGNMENT AA3
+                JOIN FLIGHT F3 ON F3.ID = AA3.Flight_ID
+                WHERE AA3.Aircrew_ID = AA.Aircrew_ID
+                  AND F3.Status IN ('Active', 'Full')
+                  AND datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure) > datetime(F.Arrival_date || ' ' || F.Arrival_time)
+                  AND datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure) <= datetime(%s)
               )
-        """, (origin, dep_datetime_str, dep_datetime_str, dep_datetime_str))
-        available_staff_set = available_staff_set | set([x["Aircrew_ID"] for x in future_arrivals_staff])
+        """, (origin, dep_datetime_str, dep_datetime_str))
+        staff_at_airport_set = staff_at_airport_set | set([x["Aircrew_ID"] for x in future_arrivals_staff])
         
-        # Include new staff (never been on any flight)
+        # Include new staff (never been on any flight) - they're available anywhere
         all_crew_with_flights = query_all("SELECT DISTINCT Aircrew_ID FROM AIRCREW_ASSIGNMENT")
         all_crew_with_flights_set = set([x["Aircrew_ID"] for x in all_crew_with_flights])
-        all_crew = query_all("SELECT ID FROM AIRCREW")
-        all_crew_set = set([x["ID"] for x in all_crew])
         new_staff_set = all_crew_set - all_crew_with_flights_set
-        available_staff_set = available_staff_set | new_staff_set
+        available_staff_set = (staff_at_airport_set | new_staff_set) - busy_staff_set
         
         # Check if we have enough staff (minimum requirements: 2 pilots, 3 attendants for Small; 3 pilots, 6 attendants for Big)
         req_pilots = 3 if size_needed else 2
@@ -1644,10 +1634,16 @@ def manager_add_flight_step1():
         has_aircraft = len(available_airplanes) > 0
         has_enough_staff = len(available_pilots) >= req_pilots and len(available_attendants) >= req_attendants
         
+        # Debug: Check what we have
+        total_pilots = len(pilots)
+        total_attendants = len(attendants)
+        total_new_staff = len(new_staff_set)
+        total_at_airport = len(staff_at_airport_set)
+        total_busy = len(busy_staff_set)
+        
         if not has_aircraft or not has_enough_staff:
-            # Find earliest timestamp when both become available
-            # Query future flights arriving at origin airport
-            future_arrivals = query_all("""
+            # Find earliest timestamp when staff will arrive at origin airport
+            earliest_staff_arrival = query_one("""
                 SELECT F.Arrival_date, F.Arrival_time, COUNT(DISTINCT AA.Aircrew_ID) as crew_count
                 FROM FLIGHT F
                 JOIN AIRCREW_ASSIGNMENT AA ON AA.Flight_ID = F.ID
@@ -1656,95 +1652,56 @@ def manager_add_flight_step1():
                   AND datetime(F.Arrival_date || ' ' || F.Arrival_time) > datetime(%s)
                 GROUP BY F.Arrival_date, F.Arrival_time
                 ORDER BY F.Arrival_date, F.Arrival_time
+                LIMIT 1
             """, (origin, dep_datetime_str))
             
-            # Also check aircraft availability at future times
-            # Find next available aircraft time
-            next_aircraft_time = query_all("""
-                SELECT MIN(datetime(Date_of_departure || ' ' || Time_of_departure)) as next_time
+            # Find earliest time when aircraft becomes available
+            earliest_aircraft_time = query_one("""
+                SELECT Date_of_departure, Time_of_departure
                 FROM FLIGHT
                 WHERE datetime(Date_of_departure || ' ' || Time_of_departure) > datetime(%s)
+                ORDER BY Date_of_departure, Time_of_departure
+                LIMIT 1
             """, (dep_datetime_str,))
             
-            suggested_time = None
             suggested_date = None
+            suggested_time = None
             
-            # Find earliest time when both staff and aircraft are available
-            for arrival in future_arrivals:
-                arr_date = arrival["Arrival_date"]
-                arr_time = arrival["Arrival_time"]
-                arr_datetime_str = f"{arr_date} {arr_time}"
-                
-                # Check aircraft availability at this time
-                params_check = []
-                where_check = "WHERE 1=1"
-                if size_needed:
-                    where_check += " AND A.Size=%s"
-                    params_check.append(size_needed)
-                where_check += """ AND A.ID NOT IN (
-                    SELECT Airplane_ID FROM FLIGHT
-                    WHERE Date_of_departure=%s AND Time_of_departure=%s
-                )"""
-                params_check += [arr_date, arr_time]
-                aircraft_at_time = query_all(f"SELECT A.* FROM AIRPLANE A {where_check}", tuple(params_check))
-                
-                if len(aircraft_at_time) > 0:
-                    # Check staff availability at this time
-                    staff_at_time = query_all("""
-                        SELECT DISTINCT AA.Aircrew_ID
-                        FROM AIRCREW_ASSIGNMENT AA
-                        JOIN FLIGHT F ON F.ID = AA.Flight_ID
-                        WHERE F.Status = 'Completed'
-                          AND F.Arrival_airport = %s
-                          AND datetime(F.Arrival_date || ' ' || F.Arrival_time) <= datetime(%s)
-                          AND (F.Arrival_date || ' ' || F.Arrival_time) = (
-                            SELECT MAX(F2.Arrival_date || ' ' || F2.Arrival_time)
-                            FROM AIRCREW_ASSIGNMENT AA2
-                            JOIN FLIGHT F2 ON F2.ID = AA2.Flight_ID
-                            WHERE F2.Status = 'Completed'
-                              AND AA2.Aircrew_ID = AA.Aircrew_ID
-                          )
-                          AND (
-                            NOT EXISTS (
-                              SELECT 1
-                              FROM AIRCREW_ASSIGNMENT AA3
-                              JOIN FLIGHT F3 ON F3.ID = AA3.Flight_ID
-                              WHERE AA3.Aircrew_ID = AA.Aircrew_ID
-                                AND F3.Status IN ('Active', 'Full')
-                                AND datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure) > datetime(F.Arrival_date || ' ' || F.Arrival_time)
-                            )
-                            OR
-                            COALESCE((
-                              SELECT MIN(datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure))
-                              FROM AIRCREW_ASSIGNMENT AA3
-                              JOIN FLIGHT F3 ON F3.ID = AA3.Flight_ID
-                              WHERE AA3.Aircrew_ID = AA.Aircrew_ID
-                                AND F3.Status IN ('Active', 'Full')
-                                AND datetime(F3.Date_of_departure || ' ' || F3.Time_of_departure) > datetime(F.Arrival_date || ' ' || F.Arrival_time)
-                            ), '9999-12-31 23:59:59') > datetime(%s)
-                          )
-                    """, (origin, arr_datetime_str, arr_datetime_str))
-                    staff_set = set([x["Aircrew_ID"] for x in staff_at_time])
-                    
-                    # Include new staff
-                    staff_set = staff_set | new_staff_set
-                    
-                    available_p = [p for p in pilots if p["ID"] in staff_set]
-                    available_a = [a for a in attendants if a["ID"] in staff_set]
-                    
-                    if len(available_p) >= req_pilots and len(available_a) >= req_attendants:
-                        suggested_date = arr_date
-                        suggested_time = arr_time
-                        break
+            # Use the later of the two times (when both are available)
+            if earliest_staff_arrival and earliest_aircraft_time:
+                staff_dt = f"{earliest_staff_arrival['Arrival_date']} {earliest_staff_arrival['Arrival_time']}"
+                aircraft_dt = f"{earliest_aircraft_time['Date_of_departure']} {earliest_aircraft_time['Time_of_departure']}"
+                if staff_dt >= aircraft_dt:
+                    suggested_date = earliest_staff_arrival['Arrival_date']
+                    suggested_time = earliest_staff_arrival['Arrival_time']
+                else:
+                    suggested_date = earliest_aircraft_time['Date_of_departure']
+                    suggested_time = earliest_aircraft_time['Time_of_departure']
+            elif earliest_staff_arrival:
+                suggested_date = earliest_staff_arrival['Arrival_date']
+                suggested_time = earliest_staff_arrival['Arrival_time']
+            elif earliest_aircraft_time:
+                suggested_date = earliest_aircraft_time['Date_of_departure']
+                suggested_time = earliest_aircraft_time['Time_of_departure']
             
-            # Build error message
+            # Build error message with details
             error_parts = []
+            details = []
+            
             if not has_aircraft:
                 error_parts.append("aircraft")
+                total_aircraft = query_all("SELECT COUNT(*) as cnt FROM AIRPLANE")[0]["cnt"]
+                details.append(f"Total aircraft in system: {total_aircraft}")
+            
             if not has_enough_staff:
                 error_parts.append("staff members")
+                details.append(f"Required: {req_pilots} pilots, {req_attendants} attendants")
+                details.append(f"Available: {len(available_pilots)} pilots, {len(available_attendants)} attendants")
+                details.append(f"Total staff at {origin}: {len(staff_at_airport_set)}, New staff: {total_new_staff}, Busy: {total_busy}")
             
             error_msg = f"No available {' and '.join(error_parts)} at {origin} for the selected departure time ({dep_date} at {dep_time})."
+            if details:
+                error_msg += " " + " | ".join(details)
             
             if suggested_date and suggested_time:
                 error_msg += f" The earliest time when both aircraft and staff will be available is {suggested_date} at {suggested_time}. Please update the departure date and time to after this time and resubmit."
