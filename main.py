@@ -81,10 +81,8 @@ def _logout_on_server_restart():
             session.clear()
         session["_server_boot_id"] = _SERVER_BOOT_ID
     except Exception:
-        # Never block a request.
         pass
 
-# --- Auto status refresh (fallback if MySQL EVENT scheduler is disabled) ---
 # Periodically mark flights and related active orders as Completed once the *departure* timestamp has passed.
 _LAST_FLIGHT_STATUS_REFRESH = {"ts": None}
 
@@ -130,7 +128,6 @@ def _auto_complete_flights():
             )
             _LAST_FLIGHT_STATUS_REFRESH["ts"] = now
     except Exception:
-        # Never block a request because of a refresh failure.
         pass
 
 
@@ -169,7 +166,6 @@ def hm(value):
     except Exception:
         pass
 
-    # string fallback
     s = str(value)
     # Common: HH:MM:SS -> HH:MM
     if len(s) >= 5 and s[2] == ':' and s[5:6] in (':', ''):
@@ -863,7 +859,6 @@ def checkout():
             )
 
             for cls, row, col in parsed:
-                # Lock the ticket row to prevent double-booking in concurrent checkouts.
                 cur.execute(
                     """SELECT Airplane_ID, Availability
                        FROM TICKET
@@ -873,7 +868,6 @@ def checkout():
                 trow = cur.fetchone()
                 if not trow:
                     raise Exception('Seat not found')
-                # Access Row object - use dictionary-style access, not .get()
                 try:
                     availability = trow['Availability']
                     if availability is None or int(availability) != 1:
@@ -883,7 +877,6 @@ def checkout():
 
                 airplane_id = trow['Airplane_ID']
 
-                # Sanity check: a ticket may not be linked to another ACTIVE order.
                 cur.execute(
                     """SELECT 1
                        FROM TICKET_ORDER TO1
@@ -915,7 +908,6 @@ def checkout():
             conn.commit()
         except Exception as e:
             conn.rollback()
-            # Show actual error for debugging
             error_msg = str(e)
             flash(f'Failed to complete order: {error_msg}. Please try again.', 'danger')
             return redirect(url_for('flight_seats', flight_id=flight_id))
@@ -1144,7 +1136,6 @@ def cancel_order(order_id):
         o_locked = cur.fetchone()
         if not o_locked:
             raise Exception('Order not found')
-        # Access Row object - sqlite3.Row supports dictionary-style access
         try:
             order_status = o_locked['Status']
         except (KeyError, TypeError):
@@ -1158,7 +1149,6 @@ def cancel_order(order_id):
             fee = float(cancellation_fee or 0)
         except (KeyError, ValueError, TypeError):
             fee = 0.0
-        # Fallback (should not happen): if fee is missing/zero but total is positive, compute 5%.
         if fee <= 0:
             try:
                 total_price = o_locked['Total_price']
@@ -1183,7 +1173,6 @@ def cancel_order(order_id):
 
         # Release tickets: a ticket becomes available if it has NO ACTIVE link.
         for k in keys:
-            # Access Row object fields - Row objects support dictionary access
             airplane_id = k['Airplane_ID']
             flight_id = k['Flight_ID']
             seat_row = k['SEAT_Row_num']
@@ -1219,11 +1208,9 @@ def cancel_order(order_id):
         conn.commit()
     except Exception as e:
         conn.rollback()
-        # Show actual error for debugging - this will help identify the real issue
         import traceback
         error_msg = str(e)
         error_trace = traceback.format_exc()
-        # In production, log traceback instead of showing to user
         flash(f'Failed to cancel order: {error_msg}. Please try again or contact support.', 'danger')
         return redirect(url_for('order_details', order_id=order_id, email=guest_email))
     finally:
@@ -1874,7 +1861,6 @@ def manager_add_flight_step1():
                     suggested_time = cand_time
                     break
             
-            # If no time found with enough staff, suggest earliest arrival time as fallback
             if not suggested_date and future_arrivals:
                 earliest = future_arrivals[0]
                 suggested_date = earliest['Arrival_date']
@@ -2175,7 +2161,6 @@ def manager_add_flight_step2():
             "SELECT MAX(CAST(SUBSTR(ID,2) AS INTEGER)) AS mx FROM FLIGHT WHERE ID LIKE 'F%'")
         n = int((mx or {}).get("mx") or 0) + 1
         flight_id = f"F{n:05d}"
-        # extremely defensive: ensure uniqueness
         while query_one("SELECT 1 AS x FROM FLIGHT WHERE ID=%s", (flight_id,)):
             n += 1
             flight_id = f"F{n:05d}"
@@ -2283,7 +2268,6 @@ def manager_cancel_flight(flight_id):
         conn.commit()
     except Exception as e:
         conn.rollback()
-        # Log the actual error for debugging (in production, use proper logging)
         error_msg = str(e)
         flash(f'Failed to cancel flight: {error_msg}. Please try again.', 'danger')
         return redirect(url_for('manager_flights'))
@@ -2694,7 +2678,6 @@ def _revenue_report2_summary(table_rows):
         if best_overall is None or inc > best_overall["Total_Income"]:
             best_overall = {"Manufacturer": man, "Total_Income": inc}
 
-    # fallbacks
     if best_regular is None:
         best_regular = {"Manufacturer": "N/A", "Total_Income": 0.0}
     if best_first is None:

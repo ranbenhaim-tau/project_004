@@ -65,7 +65,6 @@
               </thead>
               <tbody>
                 {% for f in flights %}
-                {# Safety: hide flights with no available seats #}
                 {% if (f.available_tickets|int) > 0 %}
                 <tr>
                   <td class="fw-semibold">{{ f.ID }}</td>
