@@ -1602,7 +1602,37 @@ def manager_add_flight_step1():
             SELECT Airplane_ID FROM FLIGHT
             WHERE Date_of_departure=%s AND Time_of_departure=%s
         )"""
-        params += [dep_date, dep_time]
+        # Aircraft must be physically at the origin airport by dep time (or be brand-new with no flights),
+        # and must not be mid-flight at the requested time.
+        where += """
+        AND (
+          A.ID NOT IN (SELECT DISTINCT Airplane_ID FROM FLIGHT WHERE Status IN ('Active','Full','Completed'))
+          OR A.ID IN (
+            SELECT F.Airplane_ID
+            FROM FLIGHT F
+            WHERE F.Airplane_ID = A.ID
+              AND F.Status IN ('Active','Full','Completed')
+              AND datetime(F.Arrival_date || ' ' || F.Arrival_time) <= datetime(%s)
+              AND datetime(F.Arrival_date || ' ' || F.Arrival_time) = (
+                SELECT MAX(datetime(F2.Arrival_date || ' ' || F2.Arrival_time))
+                FROM FLIGHT F2
+                WHERE F2.Airplane_ID = A.ID
+                  AND F2.Status IN ('Active','Full','Completed')
+                  AND datetime(F2.Arrival_date || ' ' || F2.Arrival_time) <= datetime(%s)
+              )
+              AND F.Arrival_airport = %s
+          )
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM FLIGHT FX
+          WHERE FX.Airplane_ID = A.ID
+            AND FX.Status IN ('Active','Full')
+            AND datetime(FX.Date_of_departure || ' ' || FX.Time_of_departure) <= datetime(%s)
+            AND datetime(FX.Arrival_date || ' ' || FX.Arrival_time) > datetime(%s)
+        )
+        """
+        params += [dep_date, dep_time, dep_datetime_str, dep_datetime_str, origin, dep_datetime_str, dep_datetime_str]
         available_airplanes = query_all(f"SELECT A.* FROM AIRPLANE A {where}", tuple(params))
         
         # Check staff availability at origin airport
@@ -1746,7 +1776,35 @@ def manager_add_flight_step1():
                     SELECT Airplane_ID FROM FLIGHT
                     WHERE Date_of_departure=%s AND Time_of_departure=%s
                 )"""
-                params_check += [cand_date, cand_time]
+                where_check += """
+                AND (
+                  A.ID NOT IN (SELECT DISTINCT Airplane_ID FROM FLIGHT WHERE Status IN ('Active','Full','Completed'))
+                  OR A.ID IN (
+                    SELECT F.Airplane_ID
+                    FROM FLIGHT F
+                    WHERE F.Airplane_ID = A.ID
+                      AND F.Status IN ('Active','Full','Completed')
+                      AND datetime(F.Arrival_date || ' ' || F.Arrival_time) <= datetime(%s)
+                      AND datetime(F.Arrival_date || ' ' || F.Arrival_time) = (
+                        SELECT MAX(datetime(F2.Arrival_date || ' ' || F2.Arrival_time))
+                        FROM FLIGHT F2
+                        WHERE F2.Airplane_ID = A.ID
+                          AND F2.Status IN ('Active','Full','Completed')
+                          AND datetime(F2.Arrival_date || ' ' || F2.Arrival_time) <= datetime(%s)
+                      )
+                      AND F.Arrival_airport = %s
+                  )
+                )
+                AND NOT EXISTS (
+                  SELECT 1
+                  FROM FLIGHT FX
+                  WHERE FX.Airplane_ID = A.ID
+                    AND FX.Status IN ('Active','Full')
+                    AND datetime(FX.Date_of_departure || ' ' || FX.Time_of_departure) <= datetime(%s)
+                    AND datetime(FX.Arrival_date || ' ' || FX.Arrival_time) > datetime(%s)
+                )
+                """
+                params_check += [cand_date, cand_time, cand_datetime_str, cand_datetime_str, origin, cand_datetime_str, cand_datetime_str]
                 aircraft_at_time = query_all(f"SELECT A.* FROM AIRPLANE A {where_check}", tuple(params_check))
                 
                 if len(aircraft_at_time) == 0:
@@ -1885,6 +1943,8 @@ def manager_add_flight_step2():
     # Determine airplane constraints
     # Long flights: must be Big airplane (per requirements).
     size_needed = "Big" if nf["ftype"]=="Long" else None
+    dep_datetime_str = f"{nf['dep_date']} {nf['dep_time']}"
+    boarding_airport = nf["origin"]
 
     # candidate airplanes not assigned at same departure date/time
     params=[]
@@ -1896,7 +1956,37 @@ def manager_add_flight_step2():
         SELECT Airplane_ID FROM FLIGHT
         WHERE Date_of_departure=%s AND Time_of_departure=%s
     )"""
-    params += [nf["dep_date"], nf["dep_time"]]
+    # Aircraft must be physically at the boarding airport by dep time (or be brand-new with no flights),
+    # and must not be mid-flight at the requested time.
+    where += """
+    AND (
+      A.ID NOT IN (SELECT DISTINCT Airplane_ID FROM FLIGHT WHERE Status IN ('Active','Full','Completed'))
+      OR A.ID IN (
+        SELECT F.Airplane_ID
+        FROM FLIGHT F
+        WHERE F.Airplane_ID = A.ID
+          AND F.Status IN ('Active','Full','Completed')
+          AND datetime(F.Arrival_date || ' ' || F.Arrival_time) <= datetime(%s)
+          AND datetime(F.Arrival_date || ' ' || F.Arrival_time) = (
+            SELECT MAX(datetime(F2.Arrival_date || ' ' || F2.Arrival_time))
+            FROM FLIGHT F2
+            WHERE F2.Airplane_ID = A.ID
+              AND F2.Status IN ('Active','Full','Completed')
+              AND datetime(F2.Arrival_date || ' ' || F2.Arrival_time) <= datetime(%s)
+          )
+          AND F.Arrival_airport = %s
+      )
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM FLIGHT FX
+      WHERE FX.Airplane_ID = A.ID
+        AND FX.Status IN ('Active','Full')
+        AND datetime(FX.Date_of_departure || ' ' || FX.Time_of_departure) <= datetime(%s)
+        AND datetime(FX.Arrival_date || ' ' || FX.Arrival_time) > datetime(%s)
+    )
+    """
+    params += [nf["dep_date"], nf["dep_time"], dep_datetime_str, dep_datetime_str, boarding_airport, dep_datetime_str, dep_datetime_str]
 
     airplanes = query_all(f"""SELECT A.* FROM AIRPLANE A {where} ORDER BY A.Size DESC, A.Manufacturer, A.ID""", tuple(params))
 
@@ -1908,10 +1998,6 @@ def manager_add_flight_step2():
         WHERE F.Date_of_departure=%s AND F.Time_of_departure=%s
     """, (nf["dep_date"], nf["dep_time"]))
     busy_set = set([x["Aircrew_ID"] for x in busy_ids])
-
-    # Get boarding airport for the new flight
-    boarding_airport = nf["origin"]
-    dep_datetime_str = f"{nf['dep_date']} {nf['dep_time']}"
 
     # Find crew members who are at the boarding airport
     # They must have landed at the airport (arrival time <= requested departure time)
@@ -1988,7 +2074,7 @@ def manager_add_flight_step2():
     future_arrivals_staff_set = set([x["Aircrew_ID"] for x in future_arrivals_staff])
     available_at_airport_set = available_at_airport_set | future_arrivals_staff_set
 
-    # Find new staff members who have never been on any flight (they can be selected from any airport)
+    # Find brand-new staff members who have never been assigned to any flight.
     all_crew_with_flights = query_all("SELECT DISTINCT Aircrew_ID FROM AIRCREW_ASSIGNMENT")
     all_crew_with_flights_set = set([x["Aircrew_ID"] for x in all_crew_with_flights])
     all_crew = query_all("SELECT ID FROM AIRCREW")
@@ -2021,43 +2107,12 @@ def manager_add_flight_step2():
             feasible_airplanes.append(ap)
 
     if not feasible_airplanes:
-        # No combination possible at the chosen date/time.
+        # Step 2 must only be reachable when a feasible combination exists.
         if not airplanes:
-            flash("No suitable aircraft is available at the selected departure date/time.", "danger")
-            return redirect(url_for("manager_add_flight_step1"))
+            flash("No suitable aircraft is available at the selected departure date/time and origin airport.", "danger")
         else:
-            # Check if there are future flights that will bring staff to the boarding airport
-            # Find the earliest arrival time at the boarding airport from future flights
-            future_arrivals = query_all("""
-                SELECT F.Arrival_date, F.Arrival_time, COUNT(DISTINCT AA.Aircrew_ID) as crew_count
-                FROM FLIGHT F
-                JOIN AIRCREW_ASSIGNMENT AA ON AA.Flight_ID = F.ID
-                WHERE F.Arrival_airport = %s
-                  AND F.Status IN ('Active', 'Full')
-                  AND datetime(F.Arrival_date || ' ' || F.Arrival_time) > datetime(%s)
-                GROUP BY F.Arrival_date, F.Arrival_time
-                ORDER BY F.Arrival_date, F.Arrival_time
-                LIMIT 1
-            """, (boarding_airport, dep_datetime_str))
-            
-            if future_arrivals and len(future_arrivals) > 0:
-                earliest = future_arrivals[0]
-                suggested_date = earliest["Arrival_date"]
-                suggested_time = earliest["Arrival_time"]
-                crew_count = earliest["crew_count"]
-                flash(f"Warning: No available crew members at {boarding_airport} for the selected departure time. "
-                      f"The earliest time when staff will be available at this airport is {suggested_date} at {suggested_time} "
-                      f"(after a flight arrives with {crew_count} crew member(s)). "
-                      f"You can still proceed, but you may need to adjust the departure time or wait for staff to arrive.", 
-                      "warning")
-            else:
-                flash(f"Warning: No available crew members at {boarding_airport} for the selected departure date/time. "
-                      f"No future flights are scheduled to arrive at this airport with crew members. "
-                      f"You can still proceed, but you may need to assign staff manually or adjust the schedule.", 
-                      "warning")
-            # Don't redirect - allow manager to continue to step2 even without available staff
-            # They can see the empty list and decide what to do
-            feasible_airplanes = airplanes  # Use all available airplanes, even if no crew
+            flash("Not enough available crew members at the selected departure date/time and origin airport.", "danger")
+        return redirect(url_for("manager_add_flight_step1"))
 
     airplanes = feasible_airplanes
 

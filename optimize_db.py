@@ -19,7 +19,13 @@ def optimize():
         "CREATE INDEX IF NOT EXISTS idx_flight_date ON FLIGHT(Date_of_departure);",
         "CREATE INDEX IF NOT EXISTS idx_flight_origin ON FLIGHT(Origin_airport);",
         "CREATE INDEX IF NOT EXISTS idx_flight_dest ON FLIGHT(Arrival_airport);",
-        "CREATE INDEX IF NOT EXISTS idx_flight_status ON FLIGHT(Status);"
+        "CREATE INDEX IF NOT EXISTS idx_flight_status ON FLIGHT(Status);",
+
+        # Availability/location checks for manager flight creation
+        "CREATE INDEX IF NOT EXISTS idx_flight_airplane_dep ON FLIGHT(Airplane_ID, Date_of_departure, Time_of_departure);",
+        "CREATE INDEX IF NOT EXISTS idx_flight_airplane_arr ON FLIGHT(Airplane_ID, Arrival_date, Arrival_time);",
+        "CREATE INDEX IF NOT EXISTS idx_aircrew_assignment_aircrew ON AIRCREW_ASSIGNMENT(Aircrew_ID);",
+        "CREATE INDEX IF NOT EXISTS idx_aircrew_assignment_flight ON AIRCREW_ASSIGNMENT(Flight_ID);",
     ]
     
     for sql in indices:
