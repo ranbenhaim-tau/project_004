@@ -7,6 +7,10 @@ import csv
 import re
 import time
 import random
+try:
+    from zoneinfo import ZoneInfo
+except Exception:  # pragma: no cover
+    ZoneInfo = None
 
 from config import Config
 from db import query_one, query_all, execute, executemany, get_conn
@@ -48,6 +52,25 @@ def _parse_positive_int(value: str):
 # Using a second-resolution timestamp makes it stable across multi-process starts that happen together.
 _SERVER_BOOT_ID = str(int(time.time()))
 
+_JERUSALEM_TZ = None
+try:
+    if ZoneInfo is not None:
+        _JERUSALEM_TZ = ZoneInfo("Asia/Jerusalem")
+except Exception:
+    _JERUSALEM_TZ = None
+
+
+def _now_jerusalem() -> datetime:
+    """Current time in Asia/Jerusalem (fallback: server local time)."""
+    if _JERUSALEM_TZ is None:
+        return datetime.now()
+    return datetime.now(_JERUSALEM_TZ)
+
+
+def _now_jerusalem_sql() -> str:
+    """Jerusalem 'now' formatted for SQLite datetime() comparisons."""
+    return _now_jerusalem().strftime("%Y-%m-%d %H:%M:%S")
+
 
 @app.before_request
 def _logout_on_server_restart():
@@ -74,7 +97,8 @@ def _auto_complete_flights():
     This lightweight fallback keeps the UI consistent without requiring DB-level jobs.
     """
     try:
-        now = datetime.now()
+        now = _now_jerusalem()
+        now_sql = now.strftime("%Y-%m-%d %H:%M:%S")
         last = _LAST_FLIGHT_STATUS_REFRESH["ts"]
         if last is None or (now - last).total_seconds() >= 300:
             # 1) Flights become Completed once they *depart* (per project requirements).
@@ -83,8 +107,9 @@ def _auto_complete_flights():
                 UPDATE FLIGHT
                 SET Status='Completed'
                 WHERE Status IN ('Active','Full')
-                  AND datetime(Date_of_departure || ' ' || Time_of_departure) <= datetime('now', 'localtime')
-                """
+                  AND datetime(Date_of_departure || ' ' || Time_of_departure) <= datetime(%s)
+                """,
+                (now_sql,),
             )
 
             # 2) Member orders become Completed once their flight departs.
@@ -98,9 +123,10 @@ def _auto_complete_flights():
                     SELECT TO1.Order_ID
                     FROM TICKET_ORDER TO1
                     JOIN FLIGHT F ON F.ID = TO1.Flight_ID
-                    WHERE datetime(F.Date_of_departure || ' ' || F.Time_of_departure) <= datetime('now', 'localtime')
+                    WHERE datetime(F.Date_of_departure || ' ' || F.Time_of_departure) <= datetime(%s)
                   )
-                """
+                """,
+                (now_sql,),
             )
             _LAST_FLIGHT_STATUS_REFRESH["ts"] = now
     except Exception:
@@ -341,8 +367,9 @@ def flights_search():
     # "Open for sale" means: Active/Full AND not departed yet AND at least one available seat.
     where = [
         "F.Status IN ('Active','Full')",
-        "datetime(F.Date_of_departure || ' ' || F.Time_of_departure) >= datetime('now', 'localtime')"
+        "datetime(F.Date_of_departure || ' ' || F.Time_of_departure) >= datetime(%s)"
     ]
+    params.append(_now_jerusalem_sql())
 
     if dep_date:
         where.append("F.Date_of_departure = %s")
@@ -406,10 +433,10 @@ def api_available_dates():
         FROM FLIGHT
         WHERE Origin_airport=%s AND Arrival_airport=%s
           AND Status IN ('Active','Full')
-          AND datetime(Date_of_departure || ' ' || Time_of_departure) >= datetime('now', 'localtime')
+          AND datetime(Date_of_departure || ' ' || Time_of_departure) >= datetime(%s)
         ORDER BY Date_of_departure
         """,
-        (origin, dest)
+        (origin, dest, _now_jerusalem_sql())
     )
     return {"dates": [r["d"].isoformat() if hasattr(r["d"],'isoformat') else str(r["d"]) for r in rows]}
 
@@ -427,8 +454,9 @@ def flights_results():
     # Only show flights that can still be booked (not departed yet).
     where=[
         "F.Status IN ('Active','Full')",
-        "datetime(F.Date_of_departure || ' ' || F.Time_of_departure) >= datetime('now', 'localtime')"
+        "datetime(F.Date_of_departure || ' ' || F.Time_of_departure) >= datetime(%s)"
     ]
+    params.append(_now_jerusalem_sql())
     if dep_date:
         where.append("F.Date_of_departure = %s")
         params.append(dep_date)
@@ -481,9 +509,9 @@ def flight_book(flight_id):
         SELECT 1 AS x
         FROM FLIGHT
         WHERE ID=%s
-          AND datetime(Date_of_departure || ' ' || Time_of_departure) <= datetime('now', 'localtime')
+          AND datetime(Date_of_departure || ' ' || Time_of_departure) <= datetime(%s)
         """,
-        (flight_id,),
+        (flight_id, _now_jerusalem_sql()),
     )
     if departed:
         flash("This flight has already departed and can no longer be booked.", "warning")
@@ -553,9 +581,9 @@ def flight_seats(flight_id):
         SELECT 1 AS x
         FROM FLIGHT
         WHERE ID=%s
-          AND datetime(Date_of_departure || ' ' || Time_of_departure) <= datetime('now', 'localtime')
+          AND datetime(Date_of_departure || ' ' || Time_of_departure) <= datetime(%s)
         """,
-        (flight_id,),
+        (flight_id, _now_jerusalem_sql()),
     )
     if departed:
         flash("This flight has already departed and can no longer be booked.", "warning")
@@ -680,9 +708,9 @@ def checkout():
         SELECT 1 AS x
         FROM FLIGHT
         WHERE ID=%s
-          AND datetime(Date_of_departure || ' ' || Time_of_departure) <= datetime('now', 'localtime')
+          AND datetime(Date_of_departure || ' ' || Time_of_departure) <= datetime(%s)
         """,
-        (flight_id,),
+        (flight_id, _now_jerusalem_sql()),
     )
     if departed:
         session.pop("cart", None)
