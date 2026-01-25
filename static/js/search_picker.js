@@ -73,7 +73,9 @@ function setChoices(el, items, placeholder){
       // Use mousedown so the input doesn't lose focus before we set the value
       btn.addEventListener('mousedown', (e)=>{
         e.preventDefault();
-        el.value = it.code;
+        // Show label to the user, but keep code in data-code for requests/submission.
+        el.value = it.label;
+        el.dataset.code = it.code;
         closeMenu();
         el.dispatchEvent(new Event('change', { bubbles: true }));
       });
@@ -87,19 +89,19 @@ function setChoices(el, items, placeholder){
     // If the input already has a selected airport, allow opening the full list
     // without forcing the user to delete the text.
     if(typeof qOverride === 'string'){
-      render(filterByPrefix(qOverride));
+      render(filterByQuery(qOverride));
       return;
     }
-    render(filterByPrefix(el.value));
+    render(filterByQuery(el.value));
   }
 
-  function filterByPrefix(q){
+  function filterByQuery(q){
     const query = (q || '').trim().toUpperCase();
     if(!query){
       return el._airportItems;
     }
     return el._airportItems.filter(it =>
-      it.code.toUpperCase().startsWith(query) || it.label.toUpperCase().startsWith(query)
+      it.code.toUpperCase().startsWith(query) || it.label.toUpperCase().includes(query)
     );
   }
 
@@ -110,19 +112,39 @@ function setChoices(el, items, placeholder){
     el.addEventListener('focus', ()=>{
       if(el.disabled) return;
       try{ el.select(); }catch(e){}
-      const showAll = (el.dataset.selected && el.value === el.dataset.selected);
-      openAll(showAll ? '' : undefined);
+      // Always allow searching beyond the 3-letter code by keeping labels in the input.
+      openAll('');
     });
 
     el.addEventListener('click', ()=>{
       if(el.disabled) return;
-      const showAll = (el.dataset.selected && el.value === el.dataset.selected);
-      openAll(showAll ? '' : undefined);
+      openAll('');
     });
 
     el.addEventListener('input', ()=>{
       if(el.disabled) return;
-      render(filterByPrefix(el.value));
+      // While typing, clear stored code until user selects an item.
+      delete el.dataset.code;
+      render(filterByQuery(el.value));
+    });
+
+    el.addEventListener('blur', ()=>{
+      // If user typed a 3-letter code (or a label) without clicking, try to resolve it.
+      const raw = (el.value || '').trim();
+      if(!raw) return;
+      if(el.dataset.code) return;
+      const q = raw.toUpperCase();
+      const exactByCode = el._airportItems.find(it => it.code.toUpperCase() === q);
+      if(exactByCode){
+        el.value = exactByCode.label;
+        el.dataset.code = exactByCode.code;
+        return;
+      }
+      const exactByLabel = el._airportItems.find(it => it.label.toUpperCase() === q);
+      if(exactByLabel){
+        el.value = exactByLabel.label;
+        el.dataset.code = exactByLabel.code;
+      }
     });
 
     document.addEventListener('click', (e)=>{
@@ -147,6 +169,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   const dateInput = qs('#dep_date');
   const dateHint = qs('#date_hint');
   const submitBtn = qs('#search_btn');
+  const form = originSel ? originSel.closest('form') : null;
 
   if(!originSel || !destSel || !dateInput){
     return; // not on this page
@@ -178,13 +201,18 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     const preD = (destSel.dataset.selected || '').trim();
     const preDate = (dateInput.dataset.selected || '').trim();
     if(preO){
-      originSel.value = preO;
+      // preO is the airport CODE from server; show label but keep code for API calls
+      const hitO = (originSel._airportItems || []).find(it => it.code === preO);
+      originSel.value = hitO ? hitO.label : preO;
+      originSel.dataset.code = preO;
       try{
         const dd = await fetchJSON(`/api/destinations?origin=${encodeURIComponent(preO)}`);
         setChoices(destSel, dd.destinations, 'Choose destination airport');
         disable(destSel, false);
         if(preD){
-          destSel.value = preD;
+          const hitD = (destSel._airportItems || []).find(it => it.code === preD);
+          destSel.value = hitD ? hitD.label : preD;
+          destSel.dataset.code = preD;
           disable(dateInput, true);
           if(submitBtn) submitBtn.disabled = true;
           if(dateHint) dateHint.textContent = 'Loading available dates...';
@@ -210,11 +238,13 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   }
 
   originSel.addEventListener('change', async ()=>{
-    const o = originSel.value;
+    const o = (originSel.dataset.code || originSel.value || '').trim().toUpperCase();
     disable(destSel, true);
     disable(dateInput, true);
     if(submitBtn) submitBtn.disabled = true;
     dateInput.value = '';
+    destSel.value = '';
+    delete destSel.dataset.code;
     if(dateHint) dateHint.textContent = 'Choose a destination to see available dates.';
 
     if(!o) return;
@@ -229,8 +259,8 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   });
 
   destSel.addEventListener('change', async ()=>{
-    const o = originSel.value;
-    const d = destSel.value;
+    const o = (originSel.dataset.code || originSel.value || '').trim().toUpperCase();
+    const d = (destSel.dataset.code || destSel.value || '').trim().toUpperCase();
     dateInput.value = '';
     if(!o || !d) return;
 
@@ -256,4 +286,12 @@ window.addEventListener('DOMContentLoaded', async ()=>{
       if(dateHint) dateHint.textContent = 'Could not load dates. Try again.';
     }
   });
+
+  // Ensure the form submits airport CODES (not labels)
+  if(form){
+    form.addEventListener('submit', ()=>{
+      if(originSel && originSel.dataset.code){ originSel.value = originSel.dataset.code; }
+      if(destSel && destSel.dataset.code){ destSel.value = destSel.dataset.code; }
+    });
+  }
 });
