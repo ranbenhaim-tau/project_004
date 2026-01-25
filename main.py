@@ -475,20 +475,19 @@ def flight_book(flight_id):
         flash("Flight not found.", "danger")
         return redirect(url_for("flights_search"))
 
-    # Safety: do not allow booking a flight that has already departed (even if status wasn't refreshed yet).
-    try:
-        d = f.get("Date_of_departure")
-        t = f.get("Time_of_departure")
-        if isinstance(d, str):
-            d = parse_date(d)
-        if isinstance(t, str):
-            t = parse_time(t)
-        dep_dt = datetime.combine(d, t)
-        if dep_dt <= datetime.now():
-            flash("This flight has already departed.", "warning")
-            return redirect(url_for("flights_search"))
-    except Exception:
-        pass
+    # Hard guard: do not allow booking flights that already departed (server-side, SQLite-localtime).
+    departed = query_one(
+        """
+        SELECT 1 AS x
+        FROM FLIGHT
+        WHERE ID=%s
+          AND datetime(Date_of_departure || ' ' || Time_of_departure) <= datetime('now', 'localtime')
+        """,
+        (flight_id,),
+    )
+    if departed:
+        flash("This flight has already departed and can no longer be booked.", "warning")
+        return redirect(url_for("flights_search"))
 
     if f.get("Status") not in ["Active", "Full"]:
         flash("This flight is not open for booking.", "warning")
@@ -546,6 +545,20 @@ def flight_seats(flight_id):
     """, (flight_id,))
     if not f:
         flash("Flight not found.", "danger")
+        return redirect(url_for("flights_search"))
+
+    # Hard guard: block seat selection for departed flights (even via direct URL).
+    departed = query_one(
+        """
+        SELECT 1 AS x
+        FROM FLIGHT
+        WHERE ID=%s
+          AND datetime(Date_of_departure || ' ' || Time_of_departure) <= datetime('now', 'localtime')
+        """,
+        (flight_id,),
+    )
+    if departed:
+        flash("This flight has already departed and can no longer be booked.", "warning")
         return redirect(url_for("flights_search"))
 
     tickets = query_all("""
@@ -659,6 +672,21 @@ def checkout():
     f = query_one("SELECT * FROM FLIGHT WHERE ID=%s", (flight_id,))
     if not f:
         flash("Flight not found.", "danger")
+        return redirect(url_for("flights_search"))
+
+    # Hard guard: block checkout for departed flights (even if cart exists).
+    departed = query_one(
+        """
+        SELECT 1 AS x
+        FROM FLIGHT
+        WHERE ID=%s
+          AND datetime(Date_of_departure || ' ' || Time_of_departure) <= datetime('now', 'localtime')
+        """,
+        (flight_id,),
+    )
+    if departed:
+        session.pop("cart", None)
+        flash("This flight has already departed. Your selection was cleared.", "warning")
         return redirect(url_for("flights_search"))
 
     # fetch tickets and validate availability (server-side)
